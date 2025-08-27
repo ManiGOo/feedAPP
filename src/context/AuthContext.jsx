@@ -7,52 +7,69 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Logout
   const logout = () => {
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
     setUser(null);
   };
 
-  const fetchUser = async (accessToken) => {
+  // Fetch current user using access token
+  const fetchUser = async () => {
+    const access = localStorage.getItem("accessToken");
+    if (!access) {
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await api.get("/users/me", {
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${access}` },
       });
       setUser(res.data.user);
     } catch (err) {
       console.error("Failed to fetch user:", err);
-      logout();
+      logout(); // invalid token
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    const access = localStorage.getItem("accessToken");
-    if (access) {
-      fetchUser(access);
-    } else {
-      setLoading(false);
-    }
+    fetchUser();
   }, []);
 
-  const login = async (email, password) => {
-    const res = await api.post("/auth/login", { email, password });
-    localStorage.setItem("accessToken", res.data.accessToken);
-    localStorage.setItem("refreshToken", res.data.refreshToken);
-    setUser(res.data.user);
+  // Login
+  const login = async (username, password) => {
+    try {
+      const res = await api.post("/auth/login", { username, password });
+      localStorage.setItem("accessToken", res.data.accessToken);
+      localStorage.setItem("refreshToken", res.data.refreshToken);
+      setUser(res.data.user);
+      return { success: true };
+    } catch (err) {
+      console.error("Login failed:", err);
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
   };
 
+  // Signup
   const signup = async (username, email, password) => {
-    const res = await api.post("/auth/signup", { username, email, password });
-    localStorage.setItem("accessToken", res.data.accessToken);
-    localStorage.setItem("refreshToken", res.data.refreshToken);
-    setUser(res.data.user);
+    try {
+      const res = await api.post("/auth/signup", { username, email, password });
+      localStorage.setItem("accessToken", res.data.accessToken);
+      localStorage.setItem("refreshToken", res.data.refreshToken);
+      setUser(res.data.user);
+      return { success: true };
+    } catch (err) {
+      console.error("Signup failed:", err);
+      return { success: false, error: err.response?.data?.error || err.message };
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, loading }}>
-      {loading ? <div>Loading...</div> : children}
+    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+      {children}
     </AuthContext.Provider>
   );
 }

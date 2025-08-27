@@ -1,15 +1,20 @@
-// src/pages/Login.jsx
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
-import api from "../utils/api";
+import { useState, useEffect } from "react";
+import { useAuth } from "../context/AuthContext"; // use context
+import { motion } from "framer-motion";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");  // changed from email
+  const { login, user } = useAuth(); // get login func & user state
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  // Redirect if user is already logged in
+  useEffect(() => {
+    if (user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,69 +22,78 @@ export default function Login() {
     setSuccess("");
 
     try {
-      const res = await api.post("/auth/login", { username, password }); // send username
+      const res = await login(username, password); // login updates context
 
-      // Save both tokens
-      localStorage.setItem("accessToken", res.data.accessToken);
-      localStorage.setItem("refreshToken", res.data.refreshToken);
+      if (!res.success) {
+        setError(res.error);
+        return;
+      }
 
       setSuccess("Login successful! Redirecting...");
-      setTimeout(() => navigate(`/profile/${res.data.user.id}`), 1500);
+      // no navigate here; redirect handled by useEffect
     } catch (err) {
       setError(err.response?.data?.error || "Login failed. Try again.");
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-950 transition-colors">
-      <div className="bg-white dark:bg-gray-900 shadow-md p-6 rounded-lg w-96 transition-colors">
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-100">Login</h2>
-
-        {error && (
-          <p className="mb-4 text-red-600 text-sm bg-red-100 dark:bg-red-900/40 p-2 rounded">
-            {error}
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-gray-950 dark:to-gray-900 transition-colors">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="bg-white dark:bg-gray-900 shadow-lg p-8 rounded-2xl w-full max-w-md mx-4"
+      >
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="text-4xl font-extrabold text-blue-600 dark:text-blue-400"
+          >
+            Feed
+          </motion.div>
+          <p className="text-gray-500 dark:text-gray-400 mt-2">
+            Welcome back! Log in to continue.
           </p>
-        )}
+        </div>
 
-        {success && (
-          <p className="mb-4 text-green-600 text-sm bg-green-100 dark:bg-green-900/40 p-2 rounded">
-            {success}
-          </p>
-        )}
+        {error && <p className="mb-4 text-red-600 text-sm">{error}</p>}
+        {success && <p className="mb-4 text-green-600 text-sm">{success}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
-            type="text"  // changed from email
+            type="text"
             placeholder="Username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 p-2 rounded bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
+            className="w-full border p-3 rounded"
           />
           <input
             type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-gray-300 dark:border-gray-700 p-2 rounded bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
+            className="w-full border p-3 rounded"
           />
-
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             type="submit"
-            className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition-colors"
+            className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold hover:bg-blue-700"
           >
             Login
-          </button>
+          </motion.button>
         </form>
 
-        <p className="mt-4 text-gray-700 dark:text-gray-300 text-sm text-center">
+        <p className="mt-6 text-sm text-center">
           Don’t have an account?{" "}
           <Link to="/signup" className="text-blue-600 dark:text-blue-400 hover:underline">
             Sign up
           </Link>
         </p>
-      </div>
+      </motion.div>
     </div>
   );
 }

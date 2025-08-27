@@ -2,65 +2,42 @@
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import api from "../utils/api";
+import { Edit3 } from "lucide-react";
+import ButtomNav from "../components/ButtomNav.jsx";
+import EditProfileForm from "../components/EditProfileForm.jsx";
 
 function Profile() {
-  const [user, setUser] = useState({
-    id: null,
-    username: "",
-    email: "",
-    bio: "",
-    avatar_url: "",
-  });
+  const [user, setUser] = useState({});
   const [posts, setPosts] = useState([]);
   const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    bio: "",
-    avatar_url: "",
-  });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // Fetch profile data including user's posts
   const fetchProfile = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem("accessToken");
 
-      // Fetch user info
+      // Fetch user
       const resUser = await api.get("/users/me", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const userData = resUser.data?.user;
-
-      if (!userData) {
-        setMessage("Failed to load profile.");
-        setLoading(false);
-        return;
-      }
-
       setUser(userData);
-      setFormData({
-        username: userData.username || "",
-        email: userData.email || "",
-        bio: userData.bio || "",
-        avatar_url: userData.avatar_url || "",
-      });
 
-      // Fetch all posts
+      // Fetch posts
       const resPosts = await api.get("/posts", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
-      // Filter posts by this user and attach avatar_url
       const userPosts = resPosts.data
-        .filter((post) => post.author_id === userData.id)
-        .map((post) => ({
-          ...post,
-          avatar_url: userData.avatar_url,
+        .filter((p) => p.author_id === userData.id)
+        .map((p) => ({
+          ...p,
+          author: p.author || userData.username,
+          avatar_url: p.avatar_url || userData.avatar_url || null,
+          image: p.media_type === "image" ? p.media_url : null,
+          video: p.media_type === "video" ? p.media_url : null,
         }));
-
       setPosts(userPosts);
     } catch (err) {
       console.error("Error fetching profile:", err);
@@ -70,33 +47,43 @@ function Profile() {
     }
   };
 
-  // Update profile
-  const handleUpdate = async (e) => {
-    e.preventDefault();
+
+  const handleUpdate = async (formData) => {
     try {
       const token = localStorage.getItem("accessToken");
+
+      // ✅ If avatar uploaded
+      if (formData.avatarFile) {
+        const uploadData = new FormData();
+        uploadData.append("avatar", formData.avatarFile);
+
+        const resAvatar = await api.post("/users/me/avatar", uploadData, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        const updatedUser = resAvatar.data?.user;
+        setUser(updatedUser);
+        setEditing(false);
+        setMessage("Profile updated with new avatar!");
+        setTimeout(() => setMessage(""), 2000);
+        return;
+      }
+
+      // ✅ Normal update
       const res = await api.put("/users/me", formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const updatedUser = res.data?.user;
-
-      if (updatedUser) {
-        setUser(updatedUser);
-        setMessage("Profile updated successfully!");
-        setEditing(false);
-
-        // Update avatar_url in posts too
-        setPosts((prev) =>
-          prev.map((p) => ({ ...p, avatar_url: updatedUser.avatar_url }))
-        );
-
-        setTimeout(() => setMessage(""), 2000);
-      } else {
-        setMessage("Update failed. Try again.");
-      }
+      setUser(updatedUser);
+      setEditing(false);
+      setMessage("Profile updated!");
+      setTimeout(() => setMessage(""), 2000);
     } catch (err) {
-      console.error("Error updating profile:", err);
-      setMessage("Update failed. Try again.");
+      console.error("Update failed:", err);
+      setMessage("Update failed.");
     }
   };
 
@@ -105,112 +92,67 @@ function Profile() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="ml-0 md:ml-64 pt-20 max-w-2xl mx-auto px-4">
-        <p className="text-gray-600">Loading profile...</p>
-      </div>
-    );
+    return <p className="text-center pt-20">Loading profile...</p>;
   }
 
   return (
-    <div className="ml-0 md:ml-64 pt-20 max-w-2xl mx-auto px-4">
-      {/* Profile Header */}
-      <div className="flex items-center space-x-4 mb-6">
-        <div className="w-16 h-16 bg-gray-300 rounded-full overflow-hidden">
+    <div className="pt-20 max-w-2xl mx-auto px-4 pb-20">
+      {/* Profile Card */}
+      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center">
+        {/* Avatar */}
+        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500">
           {user.avatar_url ? (
             <img
               src={user.avatar_url}
               alt="avatar"
-              className="w-full h-full rounded-full object-cover"
+              className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-gray-400 flex items-center justify-center h-full w-full">
+            <span className="text-gray-400 flex items-center justify-center h-full w-full text-2xl">
               ?
             </span>
           )}
         </div>
-        <div className="flex-1">
-          {editing ? (
-            <form onSubmit={handleUpdate} className="space-y-2">
-              <input
-                type="text"
-                value={formData.username}
-                onChange={(e) =>
-                  setFormData({ ...formData, username: e.target.value })
-                }
-                className="w-full border p-1 rounded"
-                required
-                placeholder="Username"
-              />
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                className="w-full border p-1 rounded"
-                required
-                placeholder="Email"
-              />
-              <input
-                type="text"
-                value={formData.bio}
-                onChange={(e) =>
-                  setFormData({ ...formData, bio: e.target.value })
-                }
-                className="w-full border p-1 rounded"
-                placeholder="Bio"
-              />
-              <input
-                type="text"
-                value={formData.avatar_url}
-                onChange={(e) =>
-                  setFormData({ ...formData, avatar_url: e.target.value })
-                }
-                className="w-full border p-1 rounded"
-                placeholder="Avatar URL"
-              />
-              <div className="flex space-x-2">
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                >
-                  Save
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditing(false)}
-                  className="bg-gray-300 text-gray-800 px-3 py-1 rounded hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <h2 className="text-xl font-bold">{user.username}</h2>
-              <p className="text-gray-500">@{user.username}</p>
-              <p className="text-gray-600">{user.bio}</p>
+
+        {editing ? (
+          <EditProfileForm
+            user={user}
+            onCancel={() => setEditing(false)}
+            onSave={handleUpdate}
+          />
+        ) : (
+          <div className="text-center mt-6">
+            <h2 className="text-xl font-bold">{user.username}</h2>
+            <p className="text-gray-500">{user.email}</p>
+            <p className="text-gray-600 dark:text-gray-400">{user.bio}</p>
+            <div className="flex justify-center">
               <button
                 onClick={() => setEditing(true)}
-                className="mt-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
+                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1 
+               hover:bg-blue-700 transition-all duration-200"
               >
-                Edit Profile
+                <Edit3 size={16} /> Edit Profile
               </button>
-            </>
-          )}
-          {message && <p className="text-sm text-green-600 mt-2">{message}</p>}
-        </div>
+            </div>
+
+          </div>
+        )}
+
+        {message && <p className="text-sm text-green-600 mt-3">{message}</p>}
       </div>
 
-      {/* User Posts */}
-      <div className="space-y-4">
+      {/* Posts */}
+      <div className="mt-6 space-y-4">
+        <h3 className="font-semibold text-lg">Your Posts</h3>
         {posts.length > 0 ? (
           posts.map((post) => <PostCard key={post.id} {...post} />)
         ) : (
           <p className="text-gray-500">No posts yet.</p>
         )}
       </div>
+
+      {/* ✅ BottomNav */}
+      <ButtomNav />
     </div>
   );
 }
