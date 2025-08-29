@@ -24,6 +24,18 @@ function PostCard({
 
   const avatarLetter = author ? author[0].toUpperCase() : "U";
 
+  useEffect(() => {
+    const fetchLikes = async () => {
+      try {
+        const res = await api.get(`/posts/${id}`);
+        setLikes(res.data.like_count);
+        setLiked(res.data.liked_by_me);
+      } catch (err) {
+        console.error("Failed to fetch likes:", err);
+      }
+    };
+    fetchLikes();
+  }, [id]);
   // Like / Unlike
   const handleLike = async () => {
     if (!user) return;
@@ -34,7 +46,7 @@ function PostCard({
         { headers: { Authorization: `Bearer ${user.accessToken}` } }
       );
       setLiked(res.data.liked);
-      setLikes(prev => prev + (res.data.liked ? 1 : -1));
+      setLikes(res.data.like_count); // ✅ Always trust backend
     } catch (err) {
       console.error("Failed to toggle like:", err);
     }
