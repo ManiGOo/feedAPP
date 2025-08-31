@@ -1,4 +1,3 @@
-// src/App.jsx
 import ProtectedRoute from "./components/ProtectedRoute";
 import Navbar from "./components/Navbar";
 import { Routes, Route, useLocation } from "react-router-dom";
@@ -9,6 +8,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 import Following from "./pages/Following.jsx";
+import PostPage from "./pages/PostPage";
 
 function App() {
   const location = useLocation();
@@ -42,7 +42,7 @@ function App() {
             }
           />
           <Route
-            path="/post/:id"
+            path="/posts/:id"
             element={
               <ProtectedRoute>
                 <PostDetail />
@@ -53,11 +53,11 @@ function App() {
             path="/profile/:id"
             element={
               <ProtectedRoute>
-
                 <Profile />
               </ProtectedRoute>
             }
           />
+          <Route path="/post/:id" element={<PostPage />} />
           <Route
             path="/following"
             element={

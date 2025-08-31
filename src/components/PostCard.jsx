@@ -1,218 +1,158 @@
-// src/components/PostCard.jsx
-import { useState, useRef, useEffect } from "react";
-import api from "../utils/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { Heart, MessageCircle, Repeat2, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { Heart, MessageCircle, Repeat2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import api from "../utils/api";
 
-function PostCard({
+export default function PostCard({
   id,
   author,
+  author_id,
   avatar_url,
   content,
   like_count,
   liked_by_me,
-  image = null,
-  video = null,
+  image,
+  video,
+  commentsNumber = 0,
+  isFollowedAuthor = false,
+  onFollowToggle,
+  onDelete,
+  showDelete = false, // Only show delete button if true
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [likes, setLikes] = useState(like_count || 0);
   const [liked, setLiked] = useState(!!liked_by_me);
-  const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState("");
-  const inputRef = useRef(null);
-
-  const avatarLetter = author ? author[0].toUpperCase() : "U";
+  const [heartAnim, setHeartAnim] = useState(false);
+  const [following, setFollowing] = useState(isFollowedAuthor);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
-    const fetchLikes = async () => {
-      try {
-        const res = await api.get(`/posts/${id}`);
-        setLikes(res.data.like_count);
-        setLiked(res.data.liked_by_me);
-      } catch (err) {
-        console.error("Failed to fetch likes:", err);
-      }
-    };
-    fetchLikes();
-  }, [id]);
-  // Like / Unlike
+    setLikes(like_count || 0);
+    setLiked(!!liked_by_me);
+    setFollowing(isFollowedAuthor);
+  }, [like_count, liked_by_me, isFollowedAuthor]);
+
   const handleLike = async () => {
     if (!user) return;
     try {
-      const res = await api.post(
-        `/posts/${id}/like`,
-        {},
-        { headers: { Authorization: `Bearer ${user.accessToken}` } }
-      );
+      const res = await api.post(`/posts/${id}/like`, {}, {
+        headers: { Authorization: `Bearer ${user.accessToken}` },
+      });
       setLiked(res.data.liked);
-      setLikes(res.data.like_count); // ✅ Always trust backend
+      setLikes(res.data.like_count);
+      setHeartAnim(true);
+      setTimeout(() => setHeartAnim(false), 300);
     } catch (err) {
       console.error("Failed to toggle like:", err);
     }
   };
 
-  // Fetch comments
-  const fetchComments = async () => {
-    try {
-      const res = await api.get(`/posts/${id}/comments`);
-      setComments(res.data);
-    } catch (err) {
-      console.error("Failed to fetch comments:", err);
-    }
+  const handleFollowClick = () => {
+    if (!user || !onFollowToggle) return;
+    setFollowing(prev => !prev);
+    onFollowToggle(author_id);
   };
 
-  // Add new comment
-  const handleAddComment = async () => {
-    if (!user || !newComment.trim()) return;
-    try {
-      const res = await api.post(
-        `/posts/${id}/comments`,
-        { content: newComment },
-        { headers: { Authorization: `Bearer ${user.accessToken}` } }
-      );
-      setComments(prev => [...prev, res.data]);
-      setNewComment("");
-    } catch (err) {
-      console.error("Failed to add comment:", err);
-    }
+  const handleCommentClick = () => {
+    navigate(`/post/${id}`);
   };
 
-  const toggleComments = () => {
-    setShowComments(prev => !prev);
-    if (!showComments) fetchComments();
+  const handleDeleteConfirm = () => {
+    if (onDelete) onDelete(id);
+    setShowConfirm(false);
   };
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.style.height = "auto";
-      inputRef.current.style.height = inputRef.current.scrollHeight + "px";
-    }
-  }, [newComment]);
+  const avatarLetter = author ? author[0].toUpperCase() : "U";
 
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-sm rounded-xl p-4 mb-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
-
+    <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-4 mb-4 hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
+      
       {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-blue-500 text-white flex items-center justify-center rounded-full font-bold overflow-hidden">
-          {avatar_url ? (
-            <img
-              src={avatar_url}
-              alt="avatar"
-              className="w-full h-full rounded-full object-cover"
-            />
-          ) : avatarLetter}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-500 text-white flex items-center justify-center font-bold">
+            {avatar_url ? <img src={avatar_url} alt="avatar" className="w-full h-full object-cover" /> : avatarLetter}
+          </div>
+          <p className="font-semibold text-gray-900 dark:text-gray-100">{author || "Unknown"}</p>
         </div>
-        <p className="font-semibold text-gray-800 dark:text-gray-200">{author || "Unknown"}</p>
+
+        <div className="flex gap-2 items-center">
+          {user && user.id !== author_id && onFollowToggle && (
+            <button
+              onClick={handleFollowClick}
+              className={`text-xs px-3 py-1 rounded-full font-medium transition ${following
+                ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                : "bg-blue-500 text-white hover:bg-blue-600"
+              }`}
+            >
+              {following ? "Following" : "Follow"}
+            </button>
+          )}
+
+          {showDelete && onDelete && (
+            <button
+              onClick={() => setShowConfirm(true)}
+              className="text-red-500 hover:text-red-700 transition text-xs p-1 rounded-full"
+              title="Delete post"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Post content */}
-      <p className="mt-3 text-gray-700 dark:text-gray-300">{content}</p>
+      {/* Content */}
+      <p className="mt-3 text-gray-800 dark:text-gray-300 text-[15px] leading-relaxed">{content}</p>
 
       {/* Media */}
-      {image && (
-        <div className="mt-3 w-full rounded-lg overflow-hidden shadow-sm">
-          <img
-            src={image}
-            alt="post media"
-            className="w-full object-cover max-h-[500px] sm:max-h-[400px]"
-          />
-        </div>
-      )}
-      {video && (
-        <div className="mt-3 w-full rounded-lg overflow-hidden shadow-sm relative">
-          <video
-            src={video}
-            controls
-            className="w-full h-auto max-h-[500px] sm:max-h-[400px] object-cover rounded-lg"
-            poster="" // optional: you can set a thumbnail here
-          />
-          {/* Optional overlay play button if you want custom styling */}
-          {/* <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-white opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-6.24-3.6A1 1 0 007 8.384v7.232a1 1 0 001.512.848l6.24-3.6a1 1 0 000-1.696z" />
-          </svg>
-          </div> */}
-        </div>
-      )}
+      {image && <img src={image} alt="post" className="mt-3 w-full rounded-xl max-h-[500px] object-cover border border-gray-200 dark:border-gray-800" />}
+      {video && <video src={video} controls className="mt-3 w-full rounded-xl max-h-[500px] object-cover border border-gray-200 dark:border-gray-800" />}
 
       {/* Actions */}
-      <div className="mt-3 flex space-x-6 text-gray-500 dark:text-gray-400 text-sm">
-        <button
-          onClick={handleLike}
-          className={`flex items-center space-x-1 hover:text-red-500 transition ${liked ? "text-red-500" : ""
-            }`}
-          disabled={!user}
-        >
-          <Heart size={18} className={liked ? "fill-current" : ""} />
-          <span>{likes}</span>
+      <div className="mt-3 flex justify-between max-w-[300px]">
+        <button onClick={handleLike} disabled={!user} className={`flex items-center gap-1 text-sm transition ${liked ? "text-red-500" : "text-gray-500 dark:text-gray-400"} ${!user ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}>
+          <motion.div animate={heartAnim ? { scale: [1, 1.6, 1] } : { scale: 1 }} transition={{ duration: 0.3 }}><Heart size={18} /></motion.div>
+          <span className="ml-1">{likes}</span>
         </button>
 
-        <button
-          onClick={toggleComments}
-          className="flex items-center space-x-1 hover:text-blue-600 transition"
-          disabled={!user}
-        >
+        <button onClick={handleCommentClick} className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:opacity-80">
           <MessageCircle size={18} />
-          <span>Comment</span>
+          <span>{commentsNumber}</span>
         </button>
 
-        <button className="flex items-center space-x-1 hover:text-green-600 transition">
+        <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 opacity-70">
           <Repeat2 size={18} />
           <span>Repost</span>
-        </button>
+        </div>
       </div>
 
-      {/* Comments */}
-      {showComments && (
-        <div className="mt-3 space-y-2">
-          {comments.map(c => (
-            <div key={c.id} className="flex space-x-2 items-start">
-              <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                {c.avatar_url ? (
-                  <img
-                    src={c.avatar_url}
-                    alt="avatar"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-gray-500 flex items-center justify-center h-full w-full text-sm">
-                    {c.username[0].toUpperCase()}
-                  </span>
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-semibold">{c.username}</p>
-                <p className="text-gray-700 dark:text-gray-300 text-sm">{c.content}</p>
-              </div>
-            </div>
-          ))}
-
-          {/* Add comment */}
-          <div className="flex mt-2 space-x-2">
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder={user ? "Add a comment..." : "Login to comment"}
-              className="flex-1 resize-none border border-gray-300 dark:border-gray-600 rounded-full px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 bg-transparent overflow-hidden"
-              disabled={!user}
-            />
-            <button
-              onClick={handleAddComment}
-              disabled={!newComment.trim() || !user}
-              className="bg-blue-600 text-white px-3 py-1 rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
+      {/* Delete confirmation modal */}
+      <AnimatePresence>
+        {showConfirm && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-sm w-full shadow-lg"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
             >
-              Post
-            </button>
-          </div>
-        </div>
-      )}
+              <p className="text-gray-800 dark:text-gray-200 mb-4">Are you sure you want to delete this post?</p>
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowConfirm(false)} className="px-3 py-1 rounded-lg bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600">Cancel</button>
+                <button onClick={handleDeleteConfirm} className="px-3 py-1 rounded-lg bg-red-500 text-white hover:bg-red-600">Delete</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-
-export default PostCard;

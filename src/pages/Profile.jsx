@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import api from "../utils/api";
-import { Edit3 } from "lucide-react";
+import { Edit3, Trash2 } from "lucide-react";
 import ButtomNav from "../components/ButtomNav.jsx";
 import EditProfileForm from "../components/EditProfileForm.jsx";
 
@@ -37,7 +37,9 @@ function Profile() {
           avatar_url: p.avatar_url || userData.avatar_url || null,
           image: p.media_type === "image" ? p.media_url : null,
           video: p.media_type === "video" ? p.media_url : null,
+          commentsNumber: p.comments_count || 0, // <-- add this
         }));
+
       setPosts(userPosts);
     } catch (err) {
       console.error("Error fetching profile:", err);
@@ -47,12 +49,10 @@ function Profile() {
     }
   };
 
-
   const handleUpdate = async (formData) => {
     try {
       const token = localStorage.getItem("accessToken");
 
-      // ✅ If avatar uploaded
       if (formData.avatarFile) {
         const uploadData = new FormData();
         uploadData.append("avatar", formData.avatarFile);
@@ -72,7 +72,6 @@ function Profile() {
         return;
       }
 
-      // ✅ Normal update
       const res = await api.put("/users/me", formData, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -84,6 +83,24 @@ function Profile() {
     } catch (err) {
       console.error("Update failed:", err);
       setMessage("Update failed.");
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+
+    try {
+      const token = localStorage.getItem("accessToken");
+      await api.delete(`/posts/${postId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      setMessage("Post deleted!");
+      setTimeout(() => setMessage(""), 2000);
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+      setMessage("Failed to delete post.");
     }
   };
 
@@ -99,7 +116,6 @@ function Profile() {
     <div className="pt-20 max-w-2xl mx-auto px-4 pb-20">
       {/* Profile Card */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center">
-        {/* Avatar */}
         <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500">
           {user.avatar_url ? (
             <img
@@ -134,7 +150,6 @@ function Profile() {
                 <Edit3 size={16} /> Edit Profile
               </button>
             </div>
-
           </div>
         )}
 
@@ -145,13 +160,29 @@ function Profile() {
       <div className="mt-6 space-y-4">
         <h3 className="font-semibold text-lg">Your Posts</h3>
         {posts.length > 0 ? (
-          posts.map((post) => <PostCard key={post.id} {...post} />)
+          posts.map((post) => (
+            <PostCard
+              key={post.id}
+              {...post}
+              showDelete={true}             // only profile page
+              onDelete={async (postId) => {
+                try {
+                  await api.delete(`/posts/${postId}`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
+                  });
+                  setPosts((prev) => prev.filter((p) => p.id !== postId));
+                } catch (err) {
+                  console.error("Failed to delete post:", err);
+                }
+              }}
+            />
+          ))
         ) : (
           <p className="text-gray-500">No posts yet.</p>
         )}
+
       </div>
 
-      {/* ✅ BottomNav */}
       <ButtomNav />
     </div>
   );
