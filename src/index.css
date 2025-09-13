@@ -2,3 +2,14 @@
 
 @import "tailwindcss";
 
+.animated-gradient {
+  background: linear-gradient(270deg, #8b5cf6, #ec4899, #f87171);
+  background-size: 600% 600%;
+  animation: gradient-slide 8s ease infinite;
+}
+
+@keyframes gradient-slide {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
