@@ -1,3 +1,4 @@
+// src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import CreatePost from "../components/CreatePost.jsx";
@@ -5,7 +6,8 @@ import api from "../utils/api";
 import { useAuth } from "../context/AuthContext.jsx";
 import BottomNav from "../components/ButtomNav.jsx";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus } from "lucide-react";
+import { Plus, User } from "lucide-react";
+import Loader from "../components/Loader.jsx";
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
@@ -13,6 +15,8 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("forYou");
   const [showOverlay, setShowOverlay] = useState(false);
+
+  const isLoading = authLoading || loading || !user; // ✅ combined loader
 
   // Fetch all posts
   useEffect(() => {
@@ -26,6 +30,9 @@ export default function Home() {
 
         const updatedPosts = res.data.map((p) => ({
           ...p,
+          author: p.author || "Unknown",
+          author_id: p.author_id,
+          avatar_url: p.avatar_url || null,
           image: p.media_type === "image" ? p.media_url : null,
           video: p.media_type === "video" ? p.media_url : null,
           commentsNumber: p.comments_count || 0,
@@ -34,7 +41,7 @@ export default function Home() {
 
         setPosts(updatedPosts);
       } catch (err) {
-        console.error("Failed to fetch posts", err.response?.data || err.message);
+        console.error("Failed to fetch posts:", err.response?.data || err.message);
       } finally {
         setLoading(false);
       }
@@ -48,6 +55,7 @@ export default function Home() {
     const postWithUser = {
       ...newPost,
       author: user.username,
+      author_id: user.id,
       avatar_url: user.avatar_url || null,
       like_count: 0,
       liked_by_me: false,
@@ -63,9 +71,11 @@ export default function Home() {
   // Toggle follow/unfollow
   const handleFollowToggle = async (authorId) => {
     try {
-      const res = await api.post(`/follow/toggle/${authorId}`, {}, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-      });
+      const res = await api.post(
+        `/follow/toggle/${authorId}`,
+        {},
+        { headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` } }
+      );
 
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
@@ -79,11 +89,11 @@ export default function Home() {
     }
   };
 
-  if (authLoading || loading) {
+  if (isLoading) {
     return (
-      <p className="text-center text-gray-700 dark:text-gray-300 mt-10">
-        Loading posts...
-      </p>
+      <div className="flex justify-center items-center h-screen">
+        <Loader size={50} color="#3b82f6" /> {/* animated loader */}
+      </div>
     );
   }
 
@@ -131,7 +141,7 @@ export default function Home() {
               key={post.id}
               {...post}
               commentsNumber={post.commentsNumber}
-              isFollowedAuthor={post.isFollowedAuthor}
+              avatar_url={post.avatar_url || null} // keeps default avatar inside PostCard
               onFollowToggle={() => handleFollowToggle(post.author_id)}
             />
           ))

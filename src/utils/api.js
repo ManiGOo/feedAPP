@@ -1,3 +1,4 @@
+// src/utils/api.js
 import axios from "axios";
 
 // Base URL from environment variable (includes /api)
@@ -47,5 +48,20 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Fetch another user's profile by ID
+ * @param {string | number} userId
+ * @returns {Promise} resolves with { user, posts }
+ */
+api.getUserProfile = async (userId) => {
+  try {
+    const res = await api.get(`/users/${userId}`);
+    return res.data; // { user, posts }
+  } catch (err) {
+    console.error("Failed to fetch user profile:", err);
+    throw err;
+  }
+};
 
 export default api;

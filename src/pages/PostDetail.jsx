@@ -8,6 +8,8 @@ function PostDetail() {
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -16,7 +18,9 @@ function PostDetail() {
         setPost(res.data.post);
         setComments(res.data.comments || []);
       } catch (err) {
-        console.error("Failed to fetch post:", err);
+        console.error("Failed to fetch post:", err.response?.data || err.message);
+      } finally {
+        setLoading(false);
       }
     };
     fetchPost();
@@ -26,26 +30,43 @@ function PostDetail() {
     e.preventDefault();
     if (!newComment.trim()) return;
 
+    setSubmitting(true);
     try {
       const res = await api.post(`/posts/${id}/comments`, { content: newComment });
-      setComments([...comments, res.data]); // append new comment
+      setComments((prev) => [...prev, res.data]); // append new comment
       setNewComment("");
     } catch (err) {
-      console.error("Failed to add comment:", err);
+      console.error("Failed to add comment:", err.response?.data || err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  if (!post) return <p className="p-4">Loading...</p>;
+  if (loading) {
+    return (
+      <p className="text-center text-gray-700 dark:text-gray-300 mt-10">
+        Loading post...
+      </p>
+    );
+  }
+
+  if (!post) {
+    return (
+      <p className="text-center text-red-500 mt-10">
+        Failed to load post.
+      </p>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-4">
       {/* Post */}
-      <div className="border rounded-2xl shadow p-4 mb-6">
+      <div className="border rounded-2xl shadow p-4 mb-6 bg-white dark:bg-gray-900">
         <div className="flex items-center gap-3 mb-3">
           <img
             src={post.avatar_url}
             alt={post.author}
-            className="w-10 h-10 rounded-full"
+            className="w-10 h-10 rounded-full object-cover"
           />
           <span className="font-semibold">{post.author}</span>
         </div>
@@ -60,10 +81,10 @@ function PostDetail() {
       </div>
 
       {/* Comments */}
-      <div className="mb-4">
-        <h3 className="font-semibold mb-2">Comments</h3>
+      <div className="mb-6">
+        <h3 className="font-semibold mb-3">Comments</h3>
         {comments.length === 0 ? (
-          <p className="text-gray-500">No comments yet.</p>
+          <p className="text-gray-500 text-sm">No comments yet. Be the first!</p>
         ) : (
           <ul className="space-y-3">
             {comments.map((c) => (
@@ -72,14 +93,14 @@ function PostDetail() {
                   <img
                     src={c.avatar_url}
                     alt={c.username}
-                    className="w-8 h-8 rounded-full"
+                    className="w-8 h-8 rounded-full object-cover"
                   />
                   <span className="font-semibold">{c.username}</span>
-                  <span className="text-gray-500 text-sm">
+                  <span className="text-gray-500 text-xs">
                     {new Date(c.created_at).toLocaleString()}
                   </span>
                 </div>
-                <p>{c.content}</p>
+                <p className="text-sm">{c.content}</p>
               </li>
             ))}
           </ul>
@@ -91,15 +112,19 @@ function PostDetail() {
         <input
           type="text"
           placeholder="Write a comment..."
-          className="flex-1 border rounded-lg px-3 py-2"
+          className="flex-1 border rounded-lg px-3 py-2 text-sm dark:bg-gray-800 dark:text-white"
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
+          disabled={submitting}
         />
         <button
           type="submit"
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+          disabled={submitting}
+          className={`px-4 py-2 rounded-lg text-white ${
+            submitting ? "bg-blue-300 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"
+          }`}
         >
-          Send
+          {submitting ? "Sending..." : "Send"}
         </button>
       </form>
     </div>

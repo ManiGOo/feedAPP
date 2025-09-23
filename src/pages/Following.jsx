@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import BottomNav from "../components/ButtomNav.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
+import Loader from "../components/Loader.jsx"; // 🔥 import your Loader
 
 export default function Following() {
   const { user, loading: authLoading } = useAuth();
@@ -72,9 +73,9 @@ export default function Following() {
 
   if (authLoading || loading) {
     return (
-      <p className="text-center text-gray-700 dark:text-gray-300 mt-10">
-        Loading posts...
-      </p>
+      <div className="mt-10">
+        <Loader size={50} color="#3b82f6" /> {/* 🎉 animated loader */}
+      </div>
     );
   }
 

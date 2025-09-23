@@ -1,44 +1,53 @@
 // src/pages/Profile.jsx
 import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import PostCard from "../components/PostCard";
 import api from "../utils/api";
-import { Edit3, Trash2 } from "lucide-react";
+import { Edit3, User } from "lucide-react";
 import ButtomNav from "../components/ButtomNav.jsx";
 import EditProfileForm from "../components/EditProfileForm.jsx";
+import Loader from "../components/Loader.jsx";
+import { useAuth } from "../context/AuthContext";
 
 function Profile() {
-  const [user, setUser] = useState({});
+  const { id } = useParams();
+  const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
+
+  const [user, setUser] = useState(null); // ✅ null to show loader first
   const [posts, setPosts] = useState([]);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [following, setFollowing] = useState(false);
+
+  const isOwnProfile = !id || id === currentUser?.id;
 
   const fetchProfile = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("accessToken");
+      const endpoint = isOwnProfile ? "/users/me" : `/users/profile/${id}`;
+      const res = await api.get(endpoint);
+      const userData = res.data.user;
 
-      // Fetch user
-      const resUser = await api.get("/users/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const userData = resUser.data?.user;
+      // Ensure follower/following counts exist
+      userData.followersCount = userData.followersCount ?? 0;
+      userData.followingCount = userData.followingCount ?? 0;
+
       setUser(userData);
 
-      // Fetch posts
-      const resPosts = await api.get("/posts", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const userPosts = resPosts.data
-        .filter((p) => p.author_id === userData.id)
-        .map((p) => ({
-          ...p,
-          author: p.author || userData.username,
-          avatar_url: p.avatar_url || userData.avatar_url || null,
-          image: p.media_type === "image" ? p.media_url : null,
-          video: p.media_type === "video" ? p.media_url : null,
-          commentsNumber: p.comments_count || 0, // <-- add this
-        }));
+      if (!isOwnProfile && currentUser) {
+        setFollowing(userData.isFollowedByMe || false);
+      }
+
+      const userPosts = res.data.posts.map((p) => ({
+        ...p,
+        author: p.author || userData.username,
+        avatar_url: p.avatar_url || userData.avatar_url || null,
+        image: p.media_type === "image" ? p.media_url : null,
+        video: p.media_type === "video" ? p.media_url : null,
+        commentsNumber: p.comments_count || 0,
+      }));
 
       setPosts(userPosts);
     } catch (err) {
@@ -49,34 +58,27 @@ function Profile() {
     }
   };
 
+  useEffect(() => {
+    fetchProfile();
+  }, [id]);
+
   const handleUpdate = async (formData) => {
     try {
-      const token = localStorage.getItem("accessToken");
-
       if (formData.avatarFile) {
         const uploadData = new FormData();
         uploadData.append("avatar", formData.avatarFile);
-
         const resAvatar = await api.post("/users/me/avatar", uploadData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
+          headers: { "Content-Type": "multipart/form-data" },
         });
-
-        const updatedUser = resAvatar.data?.user;
-        setUser(updatedUser);
+        setUser(resAvatar.data.user);
         setEditing(false);
         setMessage("Profile updated with new avatar!");
         setTimeout(() => setMessage(""), 2000);
         return;
       }
 
-      const res = await api.put("/users/me", formData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const updatedUser = res.data?.user;
-      setUser(updatedUser);
+      const res = await api.put("/users/me", formData);
+      setUser(res.data.user);
       setEditing(false);
       setMessage("Profile updated!");
       setTimeout(() => setMessage(""), 2000);
@@ -86,37 +88,36 @@ function Profile() {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
-
+  const toggleFollow = async () => {
     try {
-      const token = localStorage.getItem("accessToken");
-      await api.delete(`/posts/${postId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.post(`/follow/toggle/${user.id}`);
+      setFollowing(res.data.isFollowing);
 
-      setPosts((prev) => prev.filter((p) => p.id !== postId));
-      setMessage("Post deleted!");
-      setTimeout(() => setMessage(""), 2000);
+      // Update follower count optimistically
+      setUser((prev) => ({
+        ...prev,
+        followersCount: res.data.isFollowing
+          ? prev.followersCount + 1
+          : prev.followersCount - 1,
+      }));
     } catch (err) {
-      console.error("Failed to delete post:", err);
-      setMessage("Failed to delete post.");
+      console.error("Follow/unfollow failed:", err);
     }
   };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  if (loading) {
-    return <p className="text-center pt-20">Loading profile...</p>;
+  if (loading || !user) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader size={50} color="#3b82f6" />
+      </div>
+    );
   }
 
   return (
     <div className="pt-20 max-w-2xl mx-auto px-4 pb-20">
       {/* Profile Card */}
       <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center">
-        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500">
+        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500 flex items-center justify-center">
           {user.avatar_url ? (
             <img
               src={user.avatar_url}
@@ -124,13 +125,11 @@ function Profile() {
               className="w-full h-full object-cover"
             />
           ) : (
-            <span className="text-gray-400 flex items-center justify-center h-full w-full text-2xl">
-              ?
-            </span>
+            <User className="w-12 h-12 text-gray-400" />
           )}
         </div>
 
-        {editing ? (
+        {isOwnProfile && editing ? (
           <EditProfileForm
             user={user}
             onCancel={() => setEditing(false)}
@@ -141,15 +140,47 @@ function Profile() {
             <h2 className="text-xl font-bold">{user.username}</h2>
             <p className="text-gray-500">{user.email}</p>
             <p className="text-gray-600 dark:text-gray-400">{user.bio}</p>
-            <div className="flex justify-center">
-              <button
-                onClick={() => setEditing(true)}
-                className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1 
-               hover:bg-blue-700 transition-all duration-200"
+
+            {/* Followers / Following */}
+            <div className="flex justify-center gap-4 mt-2 text-sm text-gray-700 dark:text-gray-300">
+              <span
+                className="cursor-pointer hover:underline"
+                onClick={() => navigate(`/follow/followers/${user.id}`)}
               >
-                <Edit3 size={16} /> Edit Profile
-              </button>
+                {user.followersCount} Followers
+              </span>
+              <span
+                className="cursor-pointer hover:underline"
+                onClick={() => navigate(`/follow/following/${user.id}`)}
+              >
+                {user.followingCount} Following
+              </span>
             </div>
+
+            {/* Edit or Follow Button */}
+            {isOwnProfile ? (
+              <div className="flex justify-center">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1 hover:bg-blue-700 transition-all duration-200"
+                >
+                  <Edit3 size={16} /> Edit Profile
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-center">
+                <button
+                  onClick={toggleFollow}
+                  className={`mt-4 px-4 py-2 rounded-lg font-medium ${
+                    following
+                      ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                      : "bg-blue-500 text-white hover:bg-blue-600"
+                  }`}
+                >
+                  {following ? "Following" : "Follow"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -158,18 +189,19 @@ function Profile() {
 
       {/* Posts */}
       <div className="mt-6 space-y-4">
-        <h3 className="font-semibold text-lg">Your Posts</h3>
+        <h3 className="font-semibold text-lg">
+          {isOwnProfile ? "Your Posts" : `${user.username}'s Posts`}
+        </h3>
+
         {posts.length > 0 ? (
           posts.map((post) => (
             <PostCard
               key={post.id}
               {...post}
-              showDelete={true}             // only profile page
+              showDelete={isOwnProfile}
               onDelete={async (postId) => {
                 try {
-                  await api.delete(`/posts/${postId}`, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
-                  });
+                  await api.delete(`/posts/${postId}`);
                   setPosts((prev) => prev.filter((p) => p.id !== postId));
                 } catch (err) {
                   console.error("Failed to delete post:", err);
@@ -180,7 +212,6 @@ function Profile() {
         ) : (
           <p className="text-gray-500">No posts yet.</p>
         )}
-
       </div>
 
       <ButtomNav />
