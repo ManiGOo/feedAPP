@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom"; // ✅ added useNavigate
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import Loader from "../components/Loader.jsx";
@@ -7,6 +7,7 @@ import Loader from "../components/Loader.jsx";
 export default function Follow() {
   const { userId, type } = useParams(); // type = "followers" | "following"
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate(); // ✅ hook for navigation
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,9 +15,10 @@ export default function Follow() {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const endpoint = type === "followers"
-        ? `/follow/followers/${userId}`
-        : `/follow/following/${userId}`;
+      const endpoint =
+        type === "followers"
+          ? `/follow/followers/${userId}`
+          : `/follow/following/${userId}`;
 
       const res = await api.get(endpoint);
       setUsers(res.data);
@@ -34,14 +36,14 @@ export default function Follow() {
   const toggleFollow = async (id, index) => {
     try {
       // Optimistic UI
-      setUsers(prev => {
+      setUsers((prev) => {
         const copy = [...prev];
         copy[index].followed_by_me = !copy[index].followed_by_me;
         return copy;
       });
 
       const res = await api.post(`/follow/toggle/${id}`);
-      setUsers(prev => {
+      setUsers((prev) => {
         const copy = [...prev];
         copy[index].followed_by_me = res.data.isFollowing;
         return copy;
@@ -49,7 +51,7 @@ export default function Follow() {
     } catch (err) {
       console.error("Toggle follow failed:", err);
       // Revert UI
-      setUsers(prev => {
+      setUsers((prev) => {
         const copy = [...prev];
         copy[index].followed_by_me = !copy[index].followed_by_me;
         return copy;
@@ -74,17 +76,31 @@ export default function Follow() {
       ) : (
         <div className="space-y-4">
           {users.map((u, i) => (
-            <div key={u.id} className="flex items-center justify-between bg-white dark:bg-gray-900 p-4 rounded-xl shadow">
-              <div className="flex items-center gap-3">
+            <div
+              key={u.id}
+              className="flex items-center justify-between bg-white dark:bg-gray-900 p-4 rounded-xl shadow"
+            >
+              {/* ✅ Make user info clickable */}
+              <div
+                onClick={() => navigate(`/profile/${u.id}`)}
+                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
+              >
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                   {u.avatar_url ? (
-                    <img src={u.avatar_url} alt={u.username} className="w-full h-full object-cover" />
+                    <img
+                      src={u.avatar_url}
+                      alt={u.username}
+                      className="w-full h-full object-cover"
+                    />
                   ) : (
-                    <span className="text-gray-400 font-bold">{u.username[0]}</span>
+                    <span className="text-gray-400 font-bold">
+                      {u.username[0]}
+                    </span>
                   )}
                 </div>
                 <span className="font-semibold">{u.username}</span>
               </div>
+
               {currentUser.id !== u.id && (
                 <button
                   onClick={() => toggleFollow(u.id, i)}
