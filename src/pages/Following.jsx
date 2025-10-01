@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import PostCard from "../components/PostCard";
 import CreatePost from "../components/CreatePost.jsx";
 import api from "../utils/api";
@@ -6,10 +8,12 @@ import { useAuth } from "../context/AuthContext.jsx";
 import BottomNav from "../components/ButtomNav.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
-import Loader from "../components/Loader.jsx"; // 🔥 import your Loader
+import Loader from "../components/Loader.jsx";
+import Navbar from "../components/Navbar.jsx";
 
 export default function Following() {
   const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showOverlay, setShowOverlay] = useState(false);
@@ -74,13 +78,29 @@ export default function Following() {
   if (authLoading || loading) {
     return (
       <div className="mt-10">
-        <Loader size={50} color="#3b82f6" /> {/* 🎉 animated loader */}
+        <Loader size={50} color="#3b82f6" />
       </div>
     );
   }
 
   return (
     <div className="pb-16 max-w-2xl mx-auto px-4 relative">
+      <Navbar />
+
+      {/* 🔙 Back Button */}
+      <div className="pt-5">
+        <div
+          onClick={() => navigate(-1)}
+          className="cursor-pointer bg-white dark:bg-gray-900 shadow-sm rounded-xl 
+            p-3 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium
+            hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md active:scale-95 
+            transition-all duration-200"
+        >
+          <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+          <span>Back</span>
+        </div>
+      </div>
+
       <div className="pt-6 pb-10 space-y-6">
         {posts.length === 0 ? (
           <p className="text-gray-700 dark:text-gray-300 mt-8 text-center text-base">

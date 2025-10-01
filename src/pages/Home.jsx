@@ -1,12 +1,12 @@
-// src/pages/Home.jsx
 import { useEffect, useState } from "react";
 import PostCard from "../components/PostCard";
 import CreatePost from "../components/CreatePost.jsx";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext.jsx";
 import BottomNav from "../components/ButtomNav.jsx";
+import Navbar from "../components/Navbar.jsx";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, User } from "lucide-react";
+import { Plus } from "lucide-react";
 import Loader from "../components/Loader.jsx";
 
 export default function Home() {
@@ -16,18 +16,35 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("forYou");
   const [showOverlay, setShowOverlay] = useState(false);
 
-  const isLoading = authLoading || loading || !user; // ✅ combined loader
+  const [tabHidden, setTabHidden] = useState(false);
+  const [lastScroll, setLastScroll] = useState(0);
 
-  // Fetch all posts
+  const isLoading = authLoading || loading || !user;
+
+  // Handle tab hide/show on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScroll = window.scrollY;
+      if (currentScroll > lastScroll + 10) {
+        setTabHidden(true); // scrolling down
+      } else if (currentScroll < lastScroll - 10) {
+        setTabHidden(false); // scrolling up
+      }
+      setLastScroll(currentScroll);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScroll]);
+
+  // Fetch posts
   useEffect(() => {
     if (!user) return;
-
     const fetchPosts = async () => {
       try {
         const res = await api.get("/posts", {
           headers: { Authorization: `Bearer ${localStorage.getItem("accessToken")}` },
         });
-
         const updatedPosts = res.data.map((p) => ({
           ...p,
           author: p.author || "Unknown",
@@ -38,7 +55,6 @@ export default function Home() {
           commentsNumber: p.comments_count || 0,
           isFollowedAuthor: !!p.is_followed_author,
         }));
-
         setPosts(updatedPosts);
       } catch (err) {
         console.error("Failed to fetch posts:", err.response?.data || err.message);
@@ -46,7 +62,6 @@ export default function Home() {
         setLoading(false);
       }
     };
-
     fetchPosts();
   }, [user]);
 
@@ -68,7 +83,7 @@ export default function Home() {
     setShowOverlay(false);
   };
 
-  // Toggle follow/unfollow
+  // Follow/unfollow toggle
   const handleFollowToggle = async (authorId) => {
     try {
       const res = await api.post(
@@ -92,19 +107,25 @@ export default function Home() {
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
-        <Loader size={50} color="#3b82f6" /> {/* animated loader */}
+        <Loader size={50} color="#3b82f6" />
       </div>
     );
   }
 
-  // Filter posts based on active tab
   const filteredPosts =
     activeTab === "following" ? posts.filter((p) => p.isFollowedAuthor) : posts;
 
   return (
     <div className="pb-16 max-w-2xl mx-auto px-4 relative">
-      {/* Tabs */}
-      <div className="flex justify-around border-b border-gray-200 dark:border-gray-700 sticky top-14 bg-white dark:bg-gray-900 z-40 shadow-sm">
+      {/* Top Navbar */}
+      <Navbar />
+
+      {/* For You / Following Tabs */}
+      <motion.div
+        className="flex justify-around border-b border-gray-200 dark:border-gray-700 sticky top-[72px] bg-white dark:bg-gray-900 z-40 shadow-sm"
+        animate={{ y: tabHidden ? -80 : 0 }}
+        transition={{ type: "tween", duration: 0.2 }}
+      >
         <button
           onClick={() => setActiveTab("forYou")}
           className={`flex-1 py-3 text-center font-medium ${
@@ -125,10 +146,10 @@ export default function Home() {
         >
           Following
         </button>
-      </div>
+      </motion.div>
 
       {/* Feed */}
-      <div className="pt-6 pb-10 space-y-6">
+      <div className="pt-6 pb-24 space-y-6">
         {filteredPosts.length === 0 ? (
           <p className="text-gray-700 dark:text-gray-300 mt-8 text-center text-base">
             {activeTab === "following"
@@ -141,11 +162,14 @@ export default function Home() {
               key={post.id}
               {...post}
               commentsNumber={post.commentsNumber}
-              avatar_url={post.avatar_url || null} // keeps default avatar inside PostCard
+              avatar_url={post.avatar_url || null}
               onFollowToggle={() => handleFollowToggle(post.author_id)}
             />
           ))
         )}
+
+        {/* Spacer to prevent overlap with floating button and bottom nav */}
+        <div className="h-24" />
       </div>
 
       {/* Floating + Button */}
@@ -158,7 +182,7 @@ export default function Home() {
         <Plus size={28} />
       </motion.button>
 
-      {/* Overlay */}
+      {/* Create Post Overlay */}
       <AnimatePresence>
         {showOverlay && (
           <motion.div
@@ -186,6 +210,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
+      {/* Bottom Navigation */}
       <BottomNav />
     </div>
   );

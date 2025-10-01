@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import { Home, LogIn, LogOut, User } from "lucide-react";
+import { Home, LogIn, LogOut, User, MessageSquare } from "lucide-react"; // ✅ added MessageSquare
 
 export default function BottomNav() {
   const { user, logout } = useAuth();
@@ -16,6 +16,17 @@ export default function BottomNav() {
           <Home className="w-6 h-6" />
           <span className="text-xs">Home</span>
         </Link>
+
+        {/* Messages */}
+        {user && (
+          <Link
+            to="/messages"
+            className="flex flex-col items-center text-gray-700 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400"
+          >
+            <MessageSquare className="w-6 h-6" />
+            <span className="text-xs">Messages</span>
+          </Link>
+        )}
 
         {/* Profile */}
         {user && (

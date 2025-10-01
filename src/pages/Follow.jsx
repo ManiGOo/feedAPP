@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom"; // ✅ added useNavigate
+import { useParams, useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import Loader from "../components/Loader.jsx";
+import Navbar from "../components/Navbar.jsx";
 
 export default function Follow() {
   const { userId, type } = useParams(); // type = "followers" | "following"
   const { user: currentUser } = useAuth();
-  const navigate = useNavigate(); // ✅ hook for navigation
+  const navigate = useNavigate();
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -62,8 +64,24 @@ export default function Follow() {
   if (loading) return <Loader size={50} color="#3b82f6" />;
 
   return (
-    <div className="max-w-2xl mx-auto pt-20 px-4">
-      <h2 className="text-xl font-bold mb-4">
+    <div className="max-w-2xl mx-auto pt-4 px-4">
+      <Navbar />
+
+      {/* 🔙 Back Button */}
+      <div className="pt-5">
+        <div
+          onClick={() => navigate(-1)}
+          className="cursor-pointer bg-white dark:bg-gray-900 shadow-sm rounded-xl 
+            p-3 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium
+            hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md active:scale-95 
+            transition-all duration-200"
+        >
+          <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+          <span>Back</span>
+        </div>
+      </div>
+
+      <h2 className="text-xl font-bold mb-4 mt-6">
         {type === "followers" ? "Followers" : "Following"}
       </h2>
 
@@ -80,7 +98,7 @@ export default function Follow() {
               key={u.id}
               className="flex items-center justify-between bg-white dark:bg-gray-900 p-4 rounded-xl shadow"
             >
-              {/* ✅ Make user info clickable */}
+              {/* Make user info clickable */}
               <div
                 onClick={() => navigate(`/profile/${u.id}`)}
                 className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"

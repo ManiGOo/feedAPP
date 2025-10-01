@@ -1,7 +1,6 @@
-// src/pages/Profile.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Edit3, User } from "lucide-react";
+import { Edit3, User, X } from "lucide-react";
 
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -9,6 +8,8 @@ import Loader from "../components/Loader";
 import PostCard from "../components/PostCard";
 import EditProfileForm from "../components/EditProfileForm";
 import ButtomNav from "../components/ButtomNav";
+import Navbar from "../components/Navbar";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Profile() {
   const { id: paramId } = useParams();
@@ -116,9 +117,15 @@ export default function Profile() {
   }
 
   return (
-    <div className="pt-20 max-w-2xl mx-auto px-4 pb-20">
+    <div className="pt-20 max-w-2xl mx-auto px-4 pb-20 relative">
+      <Navbar />
+
       {/* Profile Card */}
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center">
+      <div
+        className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center transition-all ${
+          editing ? "blur-sm pointer-events-none select-none" : ""
+        }`}
+      >
         <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500 flex items-center justify-center">
           {profile.avatar_url ? (
             <img
@@ -131,57 +138,50 @@ export default function Profile() {
           )}
         </div>
 
-        {isOwnProfile && editing ? (
-          <EditProfileForm
-            user={profile}
-            onCancel={() => setEditing(false)}
-            onSave={handleUpdate}
-          />
-        ) : (
-          <div className="text-center mt-6">
-            <h2 className="text-xl font-bold">{profile.username}</h2>
-            <p className="text-gray-500">{profile.email}</p>
-            <p className="text-gray-600 dark:text-gray-400">{profile.bio}</p>
+        <div className="text-center mt-6">
+          <h2 className="text-xl font-bold">{profile.username}</h2>
+          <p className="text-gray-500">{profile.email}</p>
+          <p className="text-gray-600 dark:text-gray-400">{profile.bio}</p>
 
-            <div className="flex justify-center gap-4 mt-2 text-sm text-gray-700 dark:text-gray-300">
-              <span
-                className="cursor-pointer hover:underline"
-                onClick={() => navigate(`/follow/followers/${profile.id}`)}
-              >
-                {profile.followersCount} Followers
-              </span>
-              <span
-                className="cursor-pointer hover:underline"
-                onClick={() => navigate(`/follow/following/${profile.id}`)}
-              >
-                {profile.followingCount} Following
-              </span>
-            </div>
-
-            {isOwnProfile ? (
-              <div className="flex justify-center mt-4">
-                <button
-                  onClick={() => setEditing(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1 hover:bg-blue-700 transition-all duration-200"
-                >
-                  <Edit3 size={16} /> Edit Profile
-                </button>
-              </div>
-            ) : (
-              <div className="flex justify-center mt-4">
-                <button
-                  onClick={toggleFollow}
-                  className={`px-4 py-2 rounded-lg font-medium ${following
-                      ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                      : "bg-blue-500 text-white hover:bg-blue-600"
-                    }`}
-                >
-                  {following ? "Following" : "Follow"}
-                </button>
-              </div>
-            )}
+          <div className="flex justify-center gap-4 mt-2 text-sm text-gray-700 dark:text-gray-300">
+            <span
+              className="cursor-pointer hover:underline"
+              onClick={() => navigate(`/follow/followers/${profile.id}`)}
+            >
+              {profile.followersCount} Followers
+            </span>
+            <span
+              className="cursor-pointer hover:underline"
+              onClick={() => navigate(`/follow/following/${profile.id}`)}
+            >
+              {profile.followingCount} Following
+            </span>
           </div>
-        )}
+
+          {isOwnProfile ? (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => setEditing(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1 hover:bg-blue-700 transition-all duration-200"
+              >
+                <Edit3 size={16} /> Edit Profile
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={toggleFollow}
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  following
+                    ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    : "bg-blue-500 text-white hover:bg-blue-600"
+                }`}
+              >
+                {following ? "Following" : "Follow"}
+              </button>
+            </div>
+          )}
+        </div>
 
         {message && <p className="text-sm text-green-600 mt-3">{message}</p>}
       </div>
@@ -212,6 +212,38 @@ export default function Profile() {
           <p className="text-gray-500">No posts yet.</p>
         )}
       </div>
+
+      {/* Edit Profile Modal */}
+      <AnimatePresence>
+        {editing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              transition={{ duration: 0.25 }}
+              className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-md w-full shadow-xl relative"
+            >
+              <button
+                onClick={() => setEditing(false)}
+                className="absolute top-3 right-3 text-gray-600 dark:text-gray-300 hover:text-red-500"
+              >
+                <X size={20} />
+              </button>
+              <EditProfileForm
+                user={profile}
+                onCancel={() => setEditing(false)}
+                onSave={handleUpdate}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ButtomNav />
     </div>

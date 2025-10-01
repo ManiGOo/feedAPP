@@ -1,8 +1,6 @@
-// src/App.jsx
 import React from "react";
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Navbar from "./components/Navbar";
 import Loader from "./components/Loader";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
@@ -13,17 +11,14 @@ import NotFound from "./pages/NotFound";
 import Following from "./pages/Following";
 import PostPage from "./pages/PostPage";
 import Follow from "./pages/Follow";
+import MessagesPage from "./pages/MessagesPage"; 
 import { useAuth } from "./context/AuthContext";
 
 function App() {
   const location = useLocation();
-  const { loading: authLoading } = useAuth();
-
-  // Hide navbar on auth pages
-  const hideNavbar = ["/login", "/signup"].includes(location.pathname);
+  const { loading: authLoading, user } = useAuth();
 
   if (authLoading) {
-    // Show global loader while auth state is being determined
     return (
       <div className="flex justify-center items-center h-screen bg-gray-50 dark:bg-gray-950">
         <Loader size={60} color="#3b82f6" />
@@ -33,11 +28,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors flex flex-col">
-      {/* Navbar */}
-      {!hideNavbar && <Navbar />}
-
-      {/* Main content */}
-      <main className={`flex-1 ${!hideNavbar ? "container mx-auto px-4 py-6" : ""}`}>
+      <main className="flex-1 container mx-auto px-4 py-6">
         <Routes>
           {/* Protected routes */}
           <Route
@@ -49,13 +40,23 @@ function App() {
             }
           />
 
+          {/* Messages route */}
+          <Route
+            path="/messages"
+            element={
+              <ProtectedRoute>
+                <MessagesPage user={user} />
+              </ProtectedRoute>
+            }
+          />
+
           {/* Profile routes */}
           <Route path="/profile" element={<Navigate to="/profile/me" replace />} />
           <Route
             path="/profile/me"
             element={
               <ProtectedRoute>
-                <Profile />
+                <Profile user={user} />
               </ProtectedRoute>
             }
           />
@@ -77,7 +78,14 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/post/:id" element={<PostPage />} />
+          <Route
+            path="/post/:id"
+            element={
+              <ProtectedRoute>
+                <PostPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Other protected routes */}
           <Route
