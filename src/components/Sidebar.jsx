@@ -11,7 +11,7 @@ export default function Sidebar({
   openGroup,
   user,
   setActiveChat,
-  closeSidebar, // function to close on mobile
+  closeSidebar,
 }) {
   const handleSelectChat = (chatObj) => {
     setActiveChat(chatObj);
@@ -19,7 +19,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-950">
       {/* Search */}
       <div className="p-4 border-b dark:border-gray-700">
         <input
@@ -32,18 +32,16 @@ export default function Sidebar({
       </div>
 
       {/* Search results */}
-      {searchLoading && <div className="p-2 text-gray-500">Searching...</div>}
-      {!searchLoading &&
-        searchResults.map((u) => (
-          <UserItem
-            key={u.id}
-            user={u}
-            onClick={() => startDM(u)}
-          />
-        ))}
+      <div className="px-4">
+        {searchLoading && <div className="p-2 text-gray-500">Searching...</div>}
+        {!searchLoading &&
+          searchResults.map((u) => (
+            <UserItem key={u.id} user={u} onClick={() => startDM(u)} />
+          ))}
+      </div>
 
       {/* Chat lists */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <ChatSection title="Direct Messages">
           {dms.map((dm) => (
             <ChatItem
@@ -89,8 +87,8 @@ export default function Sidebar({
 // ---------------- Components ----------------
 function ChatSection({ title, children }) {
   return (
-    <div className="px-4 mt-4">
-      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">{title}</h3>
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">{title}</h3>
       <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
@@ -130,7 +128,7 @@ function Avatar({ user, avatar, name }) {
   const displayName = user?.username || name || "User";
 
   return (
-    <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden text-sm font-bold text-white">
+    <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden text-sm font-bold text-white flex-shrink-0">
       {src ? <img src={src} alt="avatar" className="w-full h-full object-cover" /> : displayName[0].toUpperCase()}
     </div>
   );

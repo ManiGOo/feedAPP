@@ -1,4 +1,3 @@
-// MessagesPage.jsx
 import React, { useEffect, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import useSocket from "../hooks/useSocket.js";
@@ -130,9 +129,9 @@ export default function MessagesPage({ user }) {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-72px)] max-w-6xl mx-auto border dark:border-gray-700 rounded-xl overflow-hidden relative">
+    <div className="flex flex-col h-screen max-w-6xl mx-auto border dark:border-gray-700 rounded-xl overflow-hidden relative">
       <div className="flex flex-1 relative">
-        {/* Mobile toggle */}
+        {/* Mobile toggle button */}
         {isMobile && !sidebarOpen && (
           <button
             className="fixed top-4 left-4 z-50 p-2 rounded bg-gray-200 dark:bg-gray-700 shadow-lg"
@@ -163,7 +162,7 @@ export default function MessagesPage({ user }) {
           />
         </div>
 
-        {/* Overlay */}
+        {/* Overlay for mobile */}
         {sidebarOpen && isMobile && (
           <div
             className="fixed inset-0 bg-black bg-opacity-30 z-30 md:hidden"

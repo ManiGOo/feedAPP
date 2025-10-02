@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaVolumeMute, FaVolumeUp } from "react-icons/fa";
 import api from "../utils/api";
 
-export default function UploadClipOverlay({ show, onClose, onUploaded, currentUser }) {
+export default function UploadClipOverlay({ show, onClose, onUploaded }) {
   const [title, setTitle] = useState("");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -14,33 +14,22 @@ export default function UploadClipOverlay({ show, onClose, onUploaded, currentUs
   const [loaded, setLoaded] = useState(false);
   const videoRef = useRef(null);
 
-  // Preview URL when file changes
+  // Create preview URL when file changes
   useEffect(() => {
     if (!file) return setPreview(null);
     const url = URL.createObjectURL(file);
     setPreview(url);
-    setLoaded(false);
+    setLoaded(false); // reset loaded state
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // Sync volume/mute
+  // Sync volume/muted state when video is loaded
   useEffect(() => {
     if (videoRef.current && loaded) {
       videoRef.current.volume = volume;
       videoRef.current.muted = muted;
     }
   }, [volume, muted, loaded]);
-
-  const toggleMute = () => {
-    setMuted((prev) => !prev);
-    if (!muted && volume === 0) setVolume(0.5);
-  };
-
-  const handleVolumeChange = (e) => {
-    const val = parseFloat(e.target.value);
-    setVolume(val);
-    setMuted(val === 0);
-  };
 
   const handleUpload = async () => {
     if (!file || !title.trim()) return;
@@ -53,21 +42,12 @@ export default function UploadClipOverlay({ show, onClose, onUploaded, currentUs
       formData.append("video", file);
       formData.append("title", title.trim());
 
-      const uploadedClip = await api.uploadClip(title.trim(), file);
+      const res = await api.uploadClip(formData, (event) => {
+        const percent = Math.round((event.loaded * 100) / event.total);
+        setProgress(percent);
+      });
 
-      // Construct updated clip object to send back
-      const updatedClip = {
-        ...uploadedClip,
-        author: currentUser.username,
-        avatar_url: currentUser.avatar_url,
-        like_count: 0,
-        comments_count: 0,
-        liked_by_me: false,
-      };
-
-      onUploaded(updatedClip); // update parent / ClipItem dynamically
-
-      // Reset overlay state
+      onUploaded(res); // pass uploaded clip back to parent
       setFile(null);
       setTitle("");
       setProgress(0);
@@ -80,6 +60,17 @@ export default function UploadClipOverlay({ show, onClose, onUploaded, currentUs
     } finally {
       setUploading(false);
     }
+  };
+
+  const toggleMute = () => {
+    setMuted((prev) => !prev);
+    if (!muted && volume === 0) setVolume(0.5);
+  };
+
+  const handleVolumeChange = (e) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    setMuted(val === 0);
   };
 
   return (
@@ -130,21 +121,16 @@ export default function UploadClipOverlay({ show, onClose, onUploaded, currentUs
 
             {preview && (
               <div className="relative w-full mb-4 rounded overflow-hidden">
-                <motion.video
-                  key={preview}
+                <video
                   ref={videoRef}
                   src={preview}
-                  className="w-auto max-w-full max-h-64 rounded object-contain"
+                  className="w-full rounded"
                   loop
                   playsInline
-                  autoPlay
                   onLoadedData={() => {
                     setLoaded(true);
                     videoRef.current.play().catch(() => {});
                   }}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: loaded ? 1 : 0 }}
-                  transition={{ duration: 0.5 }}
                   onClick={() => {
                     if (!loaded) return;
                     if (videoRef.current.paused) videoRef.current.play();
