@@ -7,7 +7,7 @@ import { useAuth } from "../context/AuthContext";
 import Loader from "../components/Loader";
 import PostCard from "../components/PostCard";
 import EditProfileForm from "../components/EditProfileForm";
-import ButtomNav from "../components/ButtomNav";
+import ButtomNav from "../components/BottomNav";
 import Navbar from "../components/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 

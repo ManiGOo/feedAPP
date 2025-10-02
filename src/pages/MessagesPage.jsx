@@ -8,7 +8,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import DMChat from "../components/DMChat.jsx";
 import GroupChat from "../components/GroupChat.jsx";
 import Loader from "../components/Loader.jsx";
-import BottomNav from "../components/ButtomNav.jsx";
+import BottomNav from "../components/BottomNav.jsx";
 import { Menu } from "lucide-react";
 
 export default function MessagesPage({ user }) {

@@ -1,4 +1,3 @@
-// api.js
 import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -10,6 +9,7 @@ const api = axios.create({
   },
 });
 
+// -------------------- INTERCEPTORS --------------------
 api.interceptors.request.use((config) => {
   const access = localStorage.getItem("accessToken");
   if (access) config.headers.Authorization = `Bearer ${access}`;
@@ -43,7 +43,95 @@ api.interceptors.response.use(
   }
 );
 
-// ---------------- DM METHODS ----------------
+// -------------------- POSTS --------------------
+api.getPosts = async () => {
+  const res = await api.get("/posts");
+  return res.data;
+};
+
+api.getPostById = async (postId) => {
+  const res = await api.get(`/posts/${postId}`);
+  return res.data;
+};
+
+api.createPost = async (data) => {
+  const formData = new FormData();
+  if (data.content) formData.append("content", data.content);
+  if (data.image) formData.append("image", data.image);
+  if (data.video) formData.append("video", data.video);
+
+  const res = await api.post("/posts", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+};
+
+api.deletePost = async (postId) => {
+  const res = await api.delete(`/posts/${postId}`);
+  return res.data;
+};
+
+api.toggleLikePost = async (postId) => {
+  const res = await api.post(`/posts/${postId}/like`);
+  return res.data;
+};
+
+// -------------------- CLIPS --------------------
+api.getClips = async () => {
+  const res = await api.get("/clips");
+  return res.data;
+};
+
+api.getClipById = async (clipId) => {
+  const res = await api.get(`/clips/${clipId}`);
+  return res.data;
+};
+
+// -------------------- UPLOAD CLIP (with progress) --------------------
+api.uploadClip = async (formData, onUploadProgress) => {
+  if (!formData || !formData.get("video")) throw new Error("Video file is required");
+
+  const res = await api.post("/clips", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress, // progress callback
+  });
+
+  return res.data;
+};
+
+api.deleteClip = async (clipId) => {
+  const res = await api.delete(`/clips/${clipId}`);
+  return res.data;
+};
+
+api.toggleLikeClip = async (clipId) => {
+  const res = await api.post(`/clips/${clipId}/like`);
+  return res.data;
+};
+
+// -------------------- CLIP COMMENTS --------------------
+api.getClipComments = async (clipId) => {
+  const res = await api.get(`/clips/${clipId}/comments`);
+  return res.data;
+};
+
+api.commentClip = async (clipId, content) => {
+  const res = await api.post(`/clips/${clipId}/comments`, { content });
+  return res.data;
+};
+
+// -------------------- USERS --------------------
+api.getUserProfile = async (userId) => {
+  const res = await api.get(`/users/profile/${userId}`);
+  return res.data;
+};
+
+api.getFollowableUsers = async () => {
+  const res = await api.get("/users/following");
+  return res.data;
+};
+
+// -------------------- DMs --------------------
 api.getDMs = async () => {
   const res = await api.get("/messages/dms");
   return res.data;
@@ -64,7 +152,7 @@ api.getOrCreateDMConversation = async (otherUserId) => {
   return api.getDMConversation(otherUserId);
 };
 
-// ---------------- GROUP METHODS ----------------
+// -------------------- GROUPS --------------------
 api.getGroups = async () => {
   const res = await api.get("/messages/groups");
   return res.data;
@@ -75,18 +163,7 @@ api.getGroupMessages = async (groupId) => {
   return res.data;
 };
 
-// ---------------- USER METHODS ----------------
-api.getUserProfile = async (userId) => {
-  const res = await api.get(`/users/profile/${userId}`);
-  return res.data;
-};
-
-api.getFollowableUsers = async () => {
-  const res = await api.get("/users/following");
-  return res.data;
-};
-
-// -------------------- MESSAGE METHODS ----------------
+// -------------------- MESSAGES --------------------
 api.updateMessage = async (messageId, content) => {
   const res = await api.put(`/messages/message/${messageId}`, { content });
   return res.data;

@@ -11,8 +11,9 @@ import NotFound from "./pages/NotFound";
 import Following from "./pages/Following";
 import PostPage from "./pages/PostPage";
 import Follow from "./pages/Follow";
-import MessagesPage from "./pages/MessagesPage"; 
+import MessagesPage from "./pages/MessagesPage";
 import { useAuth } from "./context/AuthContext";
+import ClipsFeed from "./pages/ClipsFeed"; // <-- import the new page
 
 function App() {
   const location = useLocation();
@@ -36,6 +37,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Clips / Reels feed */}
+          <Route
+            path="/clips"
+            element={
+              <ProtectedRoute>
+                <ClipsFeed />
               </ProtectedRoute>
             }
           />

@@ -3,7 +3,7 @@ import PostCard from "../components/PostCard";
 import CreatePost from "../components/CreatePost.jsx";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext.jsx";
-import BottomNav from "../components/ButtomNav.jsx";
+import BottomNav from "../components/BottomNav.jsx";
 import Navbar from "../components/Navbar.jsx";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus } from "lucide-react";
