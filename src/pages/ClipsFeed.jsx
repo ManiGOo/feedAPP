@@ -33,7 +33,9 @@ export default function ClipsFeed({ currentUser }) {
     >
       <Icon className="w-6 h-6" />
       <span className="text-xs mt-1">{label}</span>
-      {notification && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+      {notification && (
+        <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+      )}
     </Link>
   );
 
@@ -128,9 +130,9 @@ export default function ClipsFeed({ currentUser }) {
   }
 
   return (
-    <div className="h-screen w-full flex flex-col items-center bg-black overflow-hidden">
+    <div className="h-screen w-full flex flex-col items-center bg-black overflow-hidden relative">
       {/* Post Video button */}
-      <div className="w-full flex justify-center py-2 z-20 fixed top-0">
+      <div className="fixed top-0 w-full flex justify-center py-2 z-20 bg-black/50 backdrop-blur-md">
         <motion.button
           onClick={() => setShowUpload(true)}
           className="bg-blue-500 text-white px-4 py-2 rounded-full shadow"
@@ -142,8 +144,8 @@ export default function ClipsFeed({ currentUser }) {
       </div>
 
       {/* Clips Feed */}
-      <div className="relative w-full max-w-md h-[calc(100vh-100px)] flex items-center justify-center">
-        <AnimatePresence initial={false}>
+      <div className="relative w-full max-w-md flex-1 flex items-center justify-center">
+        <AnimatePresence mode="wait" initial={false}>
           {clips.length > 0 && (
             <motion.div
               key={clips[currentIndex].id}
@@ -195,8 +197,11 @@ export default function ClipsFeed({ currentUser }) {
       />
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 w-full z-50 bg-gray-900 border-t border-gray-800" style={{ height: "60px" }}>
-        <div className="flex justify-between items-center" style={{ width: "448px", height: "100%", margin: "0 auto", padding: "0 16px" }}>
+      <nav className="fixed bottom-0 left-0 w-full z-50 bg-gray-900 border-t border-gray-800">
+        <div
+          className="flex justify-between items-center mx-auto"
+          style={{ width: "448px", height: "60px", padding: "0 16px" }}
+        >
           {navItem("/", Home, "Home")}
           {user && navItem("/messages", MessageCircle, "Messages", true)}
           {navItem("/clips", Film, "Clips")}
