@@ -30,7 +30,7 @@ export default function MessagesPage({ user }) {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Fetch DM & Group lists
+  // Fetch chats
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -49,7 +49,6 @@ export default function MessagesPage({ user }) {
   // Socket: update DMs dynamically
   useEffect(() => {
     if (!socket) return;
-
     const handleIncomingDM = (msg) => {
       setDMs((prev) => {
         const existing = prev.find(
@@ -66,7 +65,6 @@ export default function MessagesPage({ user }) {
         return [newDM, ...prev];
       });
     };
-
     socket.on("dmMessage", handleIncomingDM);
     return () => socket.off("dmMessage", handleIncomingDM);
   }, [socket, user.id]);
@@ -80,9 +78,7 @@ export default function MessagesPage({ user }) {
         const users = await api.getFollowableUsers();
         setSearchResults(
           users.filter(
-            (u) =>
-              u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) &&
-              u.id !== user.id
+            (u) => u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) && u.id !== user.id
           )
         );
       } catch (err) {
@@ -129,78 +125,75 @@ export default function MessagesPage({ user }) {
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-6xl mx-auto border dark:border-gray-700 rounded-xl overflow-hidden relative">
-      <div className="flex flex-1 relative">
-        {/* Mobile toggle button */}
-        {isMobile && !sidebarOpen && (
-          <button
-            className="fixed top-4 left-4 z-50 p-2 rounded bg-gray-200 dark:bg-gray-700 shadow-lg"
-            onClick={() => setSidebarOpen(true)}
-          >
-            <Menu size={20} />
-          </button>
-        )}
-
-        {/* Sidebar */}
-        <div
-          className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-950 z-40 transform transition-transform duration-300 ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 md:relative`}
+    <div className="flex h-screen max-w-6xl mx-auto border dark:border-gray-700 rounded-xl overflow-hidden relative">
+      {/* Mobile toggle */}
+      {isMobile && !sidebarOpen && (
+        <button
+          className="fixed top-4 left-4 z-50 p-2 rounded bg-gray-200 dark:bg-gray-700 shadow-lg"
+          onClick={() => setSidebarOpen(true)}
         >
-          <Sidebar
-            dms={dms}
-            groups={groups}
-            userSearchTerm={userSearchTerm}
-            setUserSearchTerm={setUserSearchTerm}
-            searchResults={searchResults}
-            searchLoading={searchLoading}
-            startDM={startDM}
-            openGroup={openGroup}
-            user={user}
-            setActiveChat={setActiveChat}
-            closeSidebar={() => setSidebarOpen(false)}
-          />
-        </div>
+          <Menu size={20} />
+        </button>
+      )}
 
-        {/* Overlay for mobile */}
-        {sidebarOpen && isMobile && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-30 z-30 md:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-
-        {/* Chat area */}
-        <div
-          className={`flex-1 bg-white dark:bg-gray-950 relative flex flex-col transition-all duration-300 ${
-            !isMobile && sidebarOpen ? "md:ml-64" : ""
-          }`}
-        >
-          {activeChat ? (
-            activeChat.type === "dm" ? (
-              <DMChat
-                key={activeChat.key}
-                user={user}
-                otherUser={{ id: activeChat.id, username: activeChat.username }}
-                socket={socket}
-              />
-            ) : (
-              <GroupChat
-                key={activeChat.key}
-                user={user}
-                groupId={activeChat.id}
-                socket={socket}
-              />
-            )
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500 text-center px-4">
-              Select a chat to start messaging
-            </div>
-          )}
-        </div>
+      {/* Sidebar */}
+      <div
+        className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-950 z-40 transform transition-transform duration-300 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 md:relative`}
+      >
+        <Sidebar
+          dms={dms}
+          groups={groups}
+          userSearchTerm={userSearchTerm}
+          setUserSearchTerm={setUserSearchTerm}
+          searchResults={searchResults}
+          searchLoading={searchLoading}
+          startDM={startDM}
+          openGroup={openGroup}
+          user={user}
+          setActiveChat={setActiveChat}
+          closeSidebar={() => setSidebarOpen(false)}
+        />
       </div>
 
-      {/* Bottom navigation */}
+      {/* Overlay */}
+      {sidebarOpen && isMobile && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-30 z-30 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Chat area with slide animation */}
+      <div
+        className={`flex-1 bg-white dark:bg-gray-950 relative flex flex-col transition-transform duration-300 ${
+          sidebarOpen && !isMobile ? "md:ml-64" : ""
+        } ${sidebarOpen && isMobile ? "translate-x-64 md:translate-x-0" : "translate-x-0"}`}
+      >
+        {activeChat ? (
+          activeChat.type === "dm" ? (
+            <DMChat
+              key={activeChat.key}
+              user={user}
+              otherUser={{ id: activeChat.id, username: activeChat.username }}
+              socket={socket}
+            />
+          ) : (
+            <GroupChat
+              key={activeChat.key}
+              user={user}
+              groupId={activeChat.id}
+              socket={socket}
+            />
+          )
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-500 text-center px-4">
+            Select a chat to start messaging
+          </div>
+        )}
+      </div>
+
       <BottomNav />
     </div>
   );

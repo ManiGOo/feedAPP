@@ -15,25 +15,25 @@ export default function Sidebar({
 }) {
   const handleSelectChat = (chatObj) => {
     setActiveChat(chatObj);
-    if (closeSidebar) closeSidebar();
+    if (closeSidebar) closeSidebar(); // close sidebar on mobile
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-950">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-950 w-64 md:w-64 overflow-y-auto">
       {/* Search */}
-      <div className="p-4 border-b dark:border-gray-700">
+      <div className="p-4 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-950 z-10">
         <input
           type="text"
           value={userSearchTerm}
           onChange={(e) => setUserSearchTerm(e.target.value)}
           placeholder="Search users..."
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors"
+          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors text-sm md:text-base"
         />
       </div>
 
       {/* Search results */}
-      <div className="px-4">
-        {searchLoading && <div className="p-2 text-gray-500">Searching...</div>}
+      <div className="px-4 mt-2">
+        {searchLoading && <div className="p-2 text-gray-500 text-sm">Searching...</div>}
         {!searchLoading &&
           searchResults.map((u) => (
             <UserItem key={u.id} user={u} onClick={() => startDM(u)} />
@@ -88,7 +88,7 @@ export default function Sidebar({
 function ChatSection({ title, children }) {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">{title}</h3>
+      <h3 className="text-sm md:text-base font-medium text-gray-600 dark:text-gray-300">{title}</h3>
       <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
@@ -98,7 +98,7 @@ function UserItem({ user, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 w-full text-left p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+      className="flex items-center gap-3 w-full text-left p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-sm md:text-base"
     >
       <Avatar user={user} />
       <span className="text-gray-800 dark:text-gray-100 truncate">{user.username}</span>
@@ -114,9 +114,9 @@ function ChatItem({ name, avatar, lastMessage, onClick }) {
     >
       <Avatar avatar={avatar} name={name} />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 dark:text-gray-100 truncate">{name}</div>
+        <div className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm md:text-base">{name}</div>
         {lastMessage && (
-          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">{lastMessage}</div>
+          <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">{lastMessage}</div>
         )}
       </div>
     </div>
@@ -128,7 +128,7 @@ function Avatar({ user, avatar, name }) {
   const displayName = user?.username || name || "User";
 
   return (
-    <div className="w-10 h-10 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden text-sm font-bold text-white flex-shrink-0">
+    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden text-sm md:text-base font-bold text-white flex-shrink-0">
       {src ? <img src={src} alt="avatar" className="w-full h-full object-cover" /> : displayName[0].toUpperCase()}
     </div>
   );

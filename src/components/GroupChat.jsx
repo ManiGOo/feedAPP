@@ -1,9 +1,8 @@
-// GroupChat.jsx
 import React, { useEffect, useRef, useState } from "react";
-import { v4 as uuidv4 } from "uuid"; // Import uuidv4
+import { v4 as uuidv4 } from "uuid";
 import api from "../utils/api.js";
-import MessageInput from "./MessageInput.jsx";
 import MessageItem from "./MessageItem.jsx";
+import MessageInput from "./MessageInput.jsx";
 
 export default function GroupChat({ user, groupId, socket }) {
   const [messages, setMessages] = useState([]);
@@ -19,7 +18,6 @@ export default function GroupChat({ user, groupId, socket }) {
     const fetchMessages = async () => {
       setLoading(true);
       try {
-        console.log("Fetching group messages for:", groupId);
         const msgs = await api.getGroupMessages(groupId);
         setMessages(msgs);
         if (msgs.length > 0 && msgs[0].group_name) setGroupName(msgs[0].group_name);
@@ -38,17 +36,13 @@ export default function GroupChat({ user, groupId, socket }) {
   useEffect(() => {
     if (!socket || !groupId) return;
 
-    const room = `group_${Number(groupId)}`;
-    console.log("Joining group room:", room);
     socket.emit("joinGroup", Number(groupId));
 
     const handleGroupMessage = (msg) => {
-      console.log("Received group message:", msg);
       if (msg.group_id === Number(groupId)) {
         setMessages((prev) => {
           const existing = prev.find((m) => m.tempId === msg.tempId);
           if (existing) {
-            console.log("Replacing optimistic message:", existing.id, "with server message:", msg.id);
             return prev.map((m) => (m.tempId === msg.tempId ? { ...msg, isOwn: msg.sender_id === Number(user.id) } : m));
           }
           return [...prev, { ...msg, isOwn: msg.sender_id === Number(user.id) }];
@@ -57,7 +51,6 @@ export default function GroupChat({ user, groupId, socket }) {
     };
 
     const handleDeleted = ({ messageId }) => {
-      console.log("Group message deleted:", messageId);
       setMessages((prev) => prev.filter((m) => m.id !== messageId));
     };
 
@@ -75,7 +68,7 @@ export default function GroupChat({ user, groupId, socket }) {
       socket.off("messageDeleted", handleDeleted);
       socket.off("errorMessage", handleError);
     };
-  }, [socket, groupId]);
+  }, [socket, groupId, user.id]);
 
   // ---------------- Scroll to bottom ----------------
   useEffect(() => {
@@ -86,14 +79,13 @@ export default function GroupChat({ user, groupId, socket }) {
   const sendMessage = (content) => {
     if (!content?.trim() || !socket) return;
 
-    const tempId = uuidv4(); // Unique temporary ID
-    const msgData = { group_id: Number(groupId), content, tempId }; // Include tempId
-    console.log("Emitting group message:", msgData);
+    const tempId = uuidv4();
+    const msgData = { group_id: Number(groupId), content, tempId };
     socket.emit("sendGroupMessage", msgData);
 
     const optimisticMsg = {
-      id: tempId, // Use tempId as placeholder
-      tempId, // Store tempId for matching
+      id: tempId,
+      tempId,
       sender_id: Number(user.id),
       group_id: Number(groupId),
       content,
@@ -107,7 +99,6 @@ export default function GroupChat({ user, groupId, socket }) {
   const handleDelete = async (msg) => {
     if (!socket || msg.sender_id !== Number(user.id)) return;
     try {
-      console.log("Deleting group message:", msg.id);
       await api.deleteMessage(msg.id);
       socket.emit("deleteMessage", { messageId: msg.id });
     } catch (err) {
@@ -122,14 +113,21 @@ export default function GroupChat({ user, groupId, socket }) {
 
   return (
     <div className="flex flex-col h-full">
-      {error && (
-        <div className="p-3 bg-red-100 text-red-700 rounded">{error}</div>
-      )}
-      <div className="p-3 border-b dark:border-gray-700 font-medium text-gray-700 dark:text-gray-200">{groupName}</div>
-      <div className="flex-1 overflow-y-auto p-3 space-y-2">
+      {error && <div className="p-3 bg-red-100 text-red-700 rounded">{error}</div>}
+
+      {/* Header */}
+      <div className="p-3 border-b dark:border-gray-700 font-medium text-gray-700 dark:text-gray-200">
+        {groupName}
+      </div>
+
+      {/* Messages */}
+      <div
+        className="flex-1 overflow-y-auto p-3 space-y-2"
+        style={{ marginBottom: "5%" }} // prevent messages hiding under input/BottomNav
+      >
         {messages.map((msg) => (
           <MessageItem
-            key={msg.tempId || msg.id} // Use tempId for optimistic, id for server messages
+            key={msg.tempId || msg.id}
             message={msg}
             currentUser={user}
             onDelete={msg.sender_id === Number(user.id) ? handleDelete : null}
@@ -137,6 +135,8 @@ export default function GroupChat({ user, groupId, socket }) {
         ))}
         <div ref={scrollRef}></div>
       </div>
+
+      {/* Input */}
       <MessageInput sendMessage={sendMessage} />
     </div>
   );

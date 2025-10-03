@@ -17,7 +17,10 @@ export default function MessageInput({ sendMessage }) {
   };
 
   return (
-    <div className="flex items-center gap-2 p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+    <div
+      className="flex items-center gap-2 p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
+      style={{ marginBottom: "5%" }} // extra spacing below input
+    >
       <input
         type="text"
         value={content}
