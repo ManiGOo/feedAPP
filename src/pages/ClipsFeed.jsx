@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
+import { Home, LogIn, LogOut, User, MessageCircle, Film } from "lucide-react";
 import ClipItem from "../components/ClipItem";
 import CommentsPanel from "../components/CommentsPanel";
 import Loader from "../components/Loader";
 import UploadClipOverlay from "../components/UploadClipOverlay";
-import BottomNav from "../components/BottomNav";
 import api from "../utils/api";
+import useClipsSocket from "../hooks/useClipsSocket";
 
 export default function ClipsFeed({ currentUser }) {
   const [clips, setClips] = useState([]);
@@ -13,8 +16,28 @@ export default function ClipsFeed({ currentUser }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
+  const [swipeDirection, setSwipeDirection] = useState(null);
 
-  // Fetch clips on mount
+  const { user, logout } = useAuth();
+  const location = useLocation();
+  const path = location.pathname;
+
+  // -------------------- Navigation Item --------------------
+  const navItem = (to, Icon, label, notification = false) => (
+    <Link
+      to={to}
+      className={`flex flex-col items-center text-gray-400 hover:text-white transition-transform transform hover:scale-110 relative ${
+        path === to ? "text-white" : ""
+      }`}
+      style={{ flex: "1 0 auto" }}
+    >
+      <Icon className="w-6 h-6" />
+      <span className="text-xs mt-1">{label}</span>
+      {notification && <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-pulse" />}
+    </Link>
+  );
+
+  // -------------------- Fetch Clips --------------------
   useEffect(() => {
     const fetchClips = async () => {
       try {
@@ -29,6 +52,73 @@ export default function ClipsFeed({ currentUser }) {
     fetchClips();
   }, []);
 
+  // -------------------- Swipe Handler --------------------
+  const handleSwipe = useCallback(
+    (direction) => {
+      if (direction === "up" && currentIndex < clips.length - 1) {
+        setSwipeDirection("up");
+        setCurrentIndex((prev) => prev + 1);
+      }
+      if (direction === "down" && currentIndex > 0) {
+        setSwipeDirection("down");
+        setCurrentIndex((prev) => prev - 1);
+      }
+    },
+    [clips.length, currentIndex]
+  );
+
+  // -------------------- Clip Counts Update --------------------
+  const updateClipCounts = useCallback((clipId, likeCount, commentsCount) => {
+    setClips((prev) =>
+      prev.map((clip) =>
+        clip.id === clipId ? { ...clip, like_count: likeCount, comments_count: commentsCount } : clip
+      )
+    );
+  }, []);
+
+  // -------------------- Comment Added Handler --------------------
+  const handleCommentAdded = useCallback(() => {
+    const clip = clips[currentIndex];
+    if (!clip) return;
+    updateClipCounts(clip.id, clip.like_count, (clip.comments_count || 0) + 1);
+  }, [clips, currentIndex, updateClipCounts]);
+
+  // -------------------- New Clip Handler --------------------
+  const handleNewClip = useCallback(
+    async (newClip) => {
+      try {
+        const profile = await api.getUserProfile(newClip.user_id || newClip.userId);
+        const enrichedClip = {
+          ...newClip,
+          author: profile.username,
+          avatar_url: profile.avatar_url,
+          like_count: 0,
+          comments_count: 0,
+          liked_by_me: false,
+          is_followed_author: false,
+        };
+        setClips((prev) => [enrichedClip, ...prev]);
+        setCurrentIndex(0);
+      } catch (err) {
+        console.error("Failed to enrich new clip:", err);
+        setClips((prev) => [newClip, ...prev]);
+        setCurrentIndex(0);
+      }
+      setShowUpload(false);
+    },
+    []
+  );
+
+  // -------------------- Socket Integration --------------------
+  useClipsSocket({
+    clips,
+    setClips,
+    currentIndex,
+    updateClipCounts,
+    handleCommentAdded,
+    handleNewClip,
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-black">
@@ -37,73 +127,36 @@ export default function ClipsFeed({ currentUser }) {
     );
   }
 
-  // Swipe up/down navigation
-  const handleSwipe = (direction) => {
-    if (direction === "up") setCurrentIndex((prev) => Math.min(prev + 1, clips.length - 1));
-    if (direction === "down") setCurrentIndex((prev) => Math.max(prev - 1, 0));
-  };
-
-  // Update likes/comments counts for a clip
-  const updateClipCounts = (clipId, likeCount, commentsCount) => {
-    setClips((prev) =>
-      prev.map((clip) =>
-        clip.id === clipId ? { ...clip, like_count: likeCount, comments_count: commentsCount } : clip
-      )
-    );
-  };
-
-  const handleCommentAdded = () => {
-    const clipId = clips[currentIndex].id;
-    const currentCount = clips[currentIndex].comments_count || 0;
-    updateClipCounts(clipId, clips[currentIndex].like_count, currentCount + 1);
-  };
-
-  // Add new uploaded clip at top
-  const handleNewClip = async (newClip) => {
-    try {
-      // Fetch current user profile to enrich clip with avatar/title
-      const profile = await api.getUserProfile(newClip.user_id || newClip.userId);
-      const enrichedClip = {
-        ...newClip,
-        author: profile.username,
-        avatar_url: profile.avatar_url,
-        like_count: 0,
-        comments_count: 0,
-        liked_by_me: false,
-        is_followed_author: false,
-      };
-      setClips((prev) => [enrichedClip, ...prev]);
-      setCurrentIndex(0);
-    } catch (err) {
-      console.error("Failed to enrich new clip:", err);
-      // fallback: add clip without avatar info
-      setClips((prev) => [newClip, ...prev]);
-      setCurrentIndex(0);
-    }
-  };
-
   return (
-    <div className="flex flex-col items-center min-h-screen bg-black pb-16">
+    <div className="h-screen w-full flex flex-col items-center bg-black overflow-hidden">
       {/* Post Video button */}
-      <div className="w-full flex justify-center py-2 z-10">
-        <button
+      <div className="w-full flex justify-center py-2 z-20 fixed top-0">
+        <motion.button
           onClick={() => setShowUpload(true)}
           className="bg-blue-500 text-white px-4 py-2 rounded-full shadow"
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
         >
           Post Video
-        </button>
+        </motion.button>
       </div>
 
       {/* Clips Feed */}
-      <div className="relative w-[390px] h-[844px] rounded-2xl overflow-hidden">
+      <div className="relative w-full max-w-md h-[calc(100vh-100px)] flex items-center justify-center">
         <AnimatePresence initial={false}>
           {clips.length > 0 && (
             <motion.div
               key={clips[currentIndex].id}
-              initial={{ y: 0, opacity: 1 }}
+              initial={{
+                y: swipeDirection === "up" ? 100 : swipeDirection === "down" ? -100 : 0,
+                opacity: 0,
+              }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              exit={{
+                y: swipeDirection === "up" ? -100 : swipeDirection === "down" ? 100 : 0,
+                opacity: 0,
+              }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
               drag="y"
               dragConstraints={{ top: 0, bottom: 0 }}
               dragElastic={0.2}
@@ -138,11 +191,30 @@ export default function ClipsFeed({ currentUser }) {
         show={showUpload}
         onClose={() => setShowUpload(false)}
         onUploaded={handleNewClip}
-        currentUser={currentUser} // Pass current user to populate author/avatar
+        currentUser={currentUser}
       />
 
       {/* Bottom Navigation */}
-      <BottomNav />
+      <nav className="fixed bottom-0 left-0 w-full z-50 bg-gray-900 border-t border-gray-800" style={{ height: "60px" }}>
+        <div className="flex justify-between items-center" style={{ width: "448px", height: "100%", margin: "0 auto", padding: "0 16px" }}>
+          {navItem("/", Home, "Home")}
+          {user && navItem("/messages", MessageCircle, "Messages", true)}
+          {navItem("/clips", Film, "Clips")}
+          {user && navItem("/profile", User, "Profile")}
+          {user ? (
+            <button
+              onClick={logout}
+              className="flex flex-col items-center text-gray-400 hover:text-red-500 transition-transform transform hover:scale-110"
+              style={{ flex: "1 0 auto" }}
+            >
+              <LogOut className="w-6 h-6" />
+              <span className="text-xs mt-1">Logout</span>
+            </button>
+          ) : (
+            navItem("/login", LogIn, "Login")
+          )}
+        </div>
+      </nav>
     </div>
   );
 }

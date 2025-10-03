@@ -1,49 +1,76 @@
-import React, { useRef, useEffect, useState } from "react";
-import { FaHeart, FaComment, FaVolumeMute, FaVolumeUp, FaPlay } from "react-icons/fa";
+// src/components/ClipItem.jsx
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import { FaHeart, FaComment, FaPlay } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
-import api from "../utils/api";
 import { useNavigate } from "react-router-dom";
+import api from "../utils/api";
 
 export default function ClipItem({ clip, onCommentClick, updateClipCounts }) {
   const videoRef = useRef(null);
   const navigate = useNavigate();
 
-  const [liked, setLiked] = useState(clip.liked_by_me);
-  const [likeCount, setLikeCount] = useState(clip.like_count);
-  const [commentsCount, setCommentsCount] = useState(clip.comments_count || 0);
-  const [volume, setVolume] = useState(1);
-  const [muted, setMuted] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const [title, setTitle] = useState(clip.title);
-  const [avatarUrl, setAvatarUrl] = useState(clip.avatar_url);
-  const [author, setAuthor] = useState(clip.author);
-  const [videoKey, setVideoKey] = useState(clip.id);
-  const [loaded, setLoaded] = useState(false);
 
-  // Update states when clip changes
-  useEffect(() => {
-    setLiked(clip.liked_by_me);
-    setLikeCount(clip.like_count);
-    setCommentsCount(clip.comments_count || 0);
-    setTitle(clip.title);
-    setAvatarUrl(clip.avatar_url);
-    setAuthor(clip.author);
-    setVideoKey(clip.id);
-    setLoaded(false);
-  }, [clip]);
+  const [likes, setLikes] = useState(clip.like_count || 0);
+  const [likedByMe, setLikedByMe] = useState(clip.liked_by_me || false);
+  const [commentsCount, setCommentsCount] = useState(clip.comments_count || 0);
 
-  // Auto-play/pause based on visibility
+  // -------------------- PLAY / PAUSE --------------------
+  const togglePlayPause = useCallback(() => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play().catch(() => setPaused(true));
+      setPaused(false);
+    } else {
+      videoRef.current.pause();
+      setPaused(true);
+    }
+  }, []);
+
+  // -------------------- LIKE --------------------
+  const toggleLike = async () => {
+    try {
+      if (!clip) return;
+
+      let newLikes = likes;
+      let newLikedState = likedByMe;
+
+      if (likedByMe) {
+        await api.unlikeClip(clip.id);
+        newLikes = Math.max(likes - 1, 0);
+        newLikedState = false;
+      } else {
+        await api.likeClip(clip.id);
+        newLikes = likes + 1;
+        newLikedState = true;
+      }
+
+      setLikes(newLikes);
+      setLikedByMe(newLikedState);
+
+      updateClipCounts?.(clip.id, newLikes, commentsCount);
+    } catch (err) {
+      console.error("Failed to toggle like:", err);
+    }
+  };
+
+  // -------------------- COMMENTS --------------------
+  const handleCommentClick = () => {
+    onCommentClick?.(clip);
+  };
+
+  // -------------------- AUTOPLAY / INTERSECTION --------------------
   useEffect(() => {
     if (!videoRef.current) return;
     const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && !paused) videoRef.current.play().catch(() => {});
-          else videoRef.current.pause();
-        });
+      ([entry]) => {
+        if (!videoRef.current) return;
+        if (entry.isIntersecting && !paused) videoRef.current.play().catch(() => setPaused(true));
+        else videoRef.current.pause();
       },
       { threshold: 0.75 }
     );
@@ -51,214 +78,121 @@ export default function ClipItem({ clip, onCommentClick, updateClipCounts }) {
     return () => observer.disconnect();
   }, [paused]);
 
-  // Volume/mute sync
-  useEffect(() => {
-    if (!videoRef.current) return;
-    videoRef.current.volume = volume;
-    videoRef.current.muted = muted;
-  }, [volume, muted]);
-
-  // Track currentTime and duration
+  // -------------------- TIME / DURATION --------------------
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     const timeUpdate = () => !dragging && setCurrentTime(video.currentTime);
-    const loadedMetadata = () => {
+    const loadedMeta = () => {
       setDuration(video.duration);
       setLoaded(true);
     };
 
     video.addEventListener("timeupdate", timeUpdate);
-    video.addEventListener("loadedmetadata", loadedMetadata);
+    video.addEventListener("loadedmetadata", loadedMeta);
 
     return () => {
       video.removeEventListener("timeupdate", timeUpdate);
-      video.removeEventListener("loadedmetadata", loadedMetadata);
+      video.removeEventListener("loadedmetadata", loadedMeta);
     };
-  }, [dragging, videoKey]);
+  }, [dragging]);
 
-  const toggleLike = async () => {
-    try {
-      const data = await api.toggleLikeClip(clip.id);
-      setLiked(data.liked);
-      setLikeCount(data.like_count);
-      if (updateClipCounts) updateClipCounts(clip.id, data.like_count, commentsCount);
-    } catch (err) {
-      console.error("Failed to toggle like:", err);
-    }
-  };
-
-  const toggleMute = () => {
-    if (muted) {
-      setMuted(false);
-      if (volume === 0) setVolume(0.5);
-    } else setMuted(true);
-  };
-
-  const togglePlayPause = () => {
-    if (!videoRef.current) return;
-    if (videoRef.current.paused) {
-      videoRef.current.play();
-      setPaused(false);
-    } else {
-      videoRef.current.pause();
-      setPaused(true);
-    }
-  };
-
-  const handleVolumeChange = (e) => {
-    const val = parseFloat(e.target.value);
-    setVolume(val);
-    setMuted(val === 0);
-  };
-
-  const formatTime = (time) => {
-    if (isNaN(time)) return "0:00";
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60).toString().padStart(2, "0");
-    return `${minutes}:${seconds}`;
-  };
-
+  // -------------------- SEEK HANDLERS --------------------
   const handleSeekStart = () => setDragging(true);
   const handleSeekMove = (e) => {
     if (!dragging || !videoRef.current) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
     const pos = Math.min(Math.max(clientX - rect.left, 0), rect.width);
-    setCurrentTime((pos / rect.width) * duration);
+    const newTime = (pos / rect.width) * duration;
+    setCurrentTime(newTime);
+    videoRef.current.currentTime = newTime;
   };
-  const handleSeekEnd = () => {
-    if (!videoRef.current) return;
-    videoRef.current.currentTime = currentTime;
-    setDragging(false);
+  const handleSeekEnd = () => setDragging(false);
+
+  const formatTime = (time) => {
+    if (isNaN(time) || time === 0) return "0:00";
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
   };
 
+  // -------------------- JSX --------------------
   return (
     <div className="relative w-full h-full flex justify-center items-center bg-black">
       <AnimatePresence mode="wait">
         <motion.video
-          key={videoKey}
+          key={clip.id}
           ref={videoRef}
           src={clip.video_url}
-          className="w-auto max-w-full max-h-full object-contain"
+          className="w-full h-full object-cover rounded-2xl"
           loop
-          muted={muted}
           playsInline
           onClick={togglePlayPause}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: loaded ? 1 : 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: loaded ? 1 : 0, scale: loaded ? 1 : 0.95 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ duration: 0.3, ease: "easeInOut" }}
         />
+
       </AnimatePresence>
 
-      {/* Pause overlay */}
+      {/* Play Button */}
       {paused && (
-        <button
+        <motion.button
           onClick={togglePlayPause}
-          className="absolute inset-0 m-auto w-16 h-16 flex justify-center items-center text-white bg-black/40 rounded-full text-3xl z-20"
+          className="absolute inset-0 m-auto w-16 h-16 flex justify-center items-center text-white bg-black/60 rounded-full text-3xl z-20"
         >
           <FaPlay />
-        </button>
-      )}
-
-      {/* Volume control */}
-      <AnimatePresence>
-        {paused && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute top-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full z-20"
-          >
-            <button onClick={toggleMute} className="text-white text-lg">
-              {muted ? <FaVolumeMute /> : <FaVolumeUp />}
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={muted ? 0 : volume}
-              onChange={handleVolumeChange}
-              className="w-32 h-1 accent-blue-500 rounded-lg"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Right-side buttons */}
-      <div className="absolute bottom-32 right-4 flex flex-col items-center gap-6 z-20">
-        <motion.button
-          whileTap={{ scale: 1.2 }}
-          className="flex flex-col items-center text-white"
-          onClick={toggleLike}
-        >
-          <motion.span
-            animate={{ color: liked ? "#ef4444" : "#ffffff" }}
-            transition={{ duration: 0.2 }}
-          >
-            <FaHeart className="text-3xl" />
-          </motion.span>
-          <motion.span
-            animate={{ scale: [0.8, 1], opacity: [0, 1] }}
-            transition={{ duration: 0.3 }}
-            className="text-sm"
-          >
-            {likeCount}
-          </motion.span>
         </motion.button>
+      )}
 
-        <button className="flex flex-col items-center text-white" onClick={onCommentClick}>
+      {/* Right Buttons */}
+      <div className="absolute bottom-[15%] right-4 flex flex-col items-center gap-6 z-20">
+        <button onClick={toggleLike} className="flex flex-col items-center">
+          <span className={`text-3xl ${likedByMe ? "text-red-500" : "text-white"}`}>
+            <FaHeart />
+          </span>
+          <span className="text-sm text-white">{likes}</span>
+        </button>
+
+        <button onClick={handleCommentClick} className="flex flex-col items-center text-white">
           <FaComment className="text-3xl" />
-          <motion.span
-            animate={{ scale: [0.8, 1], opacity: [0, 1] }}
-            transition={{ duration: 0.3 }}
-            className="text-sm"
-          >
-            {commentsCount}
-          </motion.span>
+          <span className="text-sm">{commentsCount}</span>
         </button>
       </div>
 
-      {/* Clip title */}
-      {title && (
-        <div className="absolute bottom-24 left-4 text-white z-20 mb-5">
-          <p className="text-sm font-bold">{title}</p>
+      {/* Bottom Info */}
+      <div className="absolute bottom-20 left-4 text-white z-20 flex flex-col gap-2">
+        <p className="text-sm font-bold truncate max-w-[60vw]">{clip.title}</p>
+        <div
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => navigate(`/profile/${clip.author_id}`)}
+        >
+          <img
+            src={clip.avatar_url || "/default-avatar.png"}
+            alt={clip.author}
+            className="w-8 h-8 rounded-full object-cover"
+          />
+          <span className="font-semibold text-white truncate max-w-[40vw]">{clip.author}</span>
         </div>
-      )}
-
-      {/* Avatar */}
-      <div
-        className="absolute bottom-16 left-4 flex items-center gap-3 z-20 cursor-pointer"
-        onClick={() => navigate(`/profile/${clip.author_id}`)}
-      >
-        <img
-          src={avatarUrl || "/default-avatar.png"}
-          alt={author || "Unknown"}
-          className="w-8 h-8 rounded-full object-cover"
-        />
-        <span className="font-semibold text-white">{author || "Unknown"}</span>
       </div>
 
-      {/* Bottom draggable progress bar */}
-      <div className="absolute bottom-2 left-4 right-4 flex items-center gap-2 text-white text-xs z-20">
+      {/* Seek Bar */}
+      <div
+        className="absolute bottom-12 left-4 right-4 flex items-center gap-2 text-white text-xs z-20"
+        onMouseDown={handleSeekStart}
+        onMouseMove={handleSeekMove}
+        onMouseUp={handleSeekEnd}
+        onMouseLeave={handleSeekEnd}
+        onTouchStart={handleSeekStart}
+        onTouchMove={handleSeekMove}
+        onTouchEnd={handleSeekEnd}
+      >
         <span>{formatTime(currentTime)}</span>
-        <div
-          className="flex-1 h-1 bg-gray-700 rounded relative cursor-pointer"
-          onMouseDown={handleSeekStart}
-          onMouseMove={handleSeekMove}
-          onMouseUp={handleSeekEnd}
-          onMouseLeave={handleSeekEnd}
-          onTouchStart={handleSeekStart}
-          onTouchMove={handleSeekMove}
-          onTouchEnd={handleSeekEnd}
-        >
-          <div
-            className="h-full bg-blue-500 rounded"
-            style={{ width: `${(currentTime / duration) * 100}%` }}
-          />
+        <div className="flex-1 h-1 bg-gray-700 rounded relative cursor-pointer">
+          <div className="h-full bg-blue-500" style={{ width: `${(currentTime / duration) * 100}%` }} />
         </div>
         <span>{formatTime(duration)}</span>
       </div>

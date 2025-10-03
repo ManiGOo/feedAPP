@@ -1,21 +1,23 @@
+// src/utils/api.js
 import axios from "axios";
+import { io } from "socket.io-client";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+// -------------------- AXIOS INSTANCE --------------------
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
+  headers: { "Content-Type": "application/json" },
 });
 
-// -------------------- INTERCEPTORS --------------------
+// -------------------- REQUEST INTERCEPTOR --------------------
 api.interceptors.request.use((config) => {
   const access = localStorage.getItem("accessToken");
   if (access) config.headers.Authorization = `Bearer ${access}`;
   return config;
 });
 
+// -------------------- RESPONSE INTERCEPTOR --------------------
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -32,7 +34,6 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${res.data.accessToken}`;
         return api(original);
       } catch (err) {
-        console.error("Token refresh failed:", err);
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
         window.location.href = "/login";
@@ -43,135 +44,81 @@ api.interceptors.response.use(
   }
 );
 
+// -------------------- SOCKET.IO --------------------
+const token = localStorage.getItem("accessToken");
+export const socket = io(API_URL.replace("/api", ""), {
+  auth: { token },
+});
+
 // -------------------- POSTS --------------------
-api.getPosts = async () => {
-  const res = await api.get("/posts");
-  return res.data;
-};
-
-api.getPostById = async (postId) => {
-  const res = await api.get(`/posts/${postId}`);
-  return res.data;
-};
-
+api.getPosts = async () => (await api.get("/posts")).data;
+api.getPostById = async (postId) => (await api.get(`/posts/${postId}`)).data;
 api.createPost = async (data) => {
   const formData = new FormData();
   if (data.content) formData.append("content", data.content);
   if (data.image) formData.append("image", data.image);
   if (data.video) formData.append("video", data.video);
-
-  const res = await api.post("/posts", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-  return res.data;
+  return (await api.post("/posts", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
 };
-
-api.deletePost = async (postId) => {
-  const res = await api.delete(`/posts/${postId}`);
-  return res.data;
-};
-
-api.toggleLikePost = async (postId) => {
-  const res = await api.post(`/posts/${postId}/like`);
-  return res.data;
-};
+api.deletePost = async (postId) => (await api.delete(`/posts/${postId}`)).data;
+api.toggleLikePost = async (postId) => (await api.post(`/posts/${postId}/like`)).data;
 
 // -------------------- CLIPS --------------------
-api.getClips = async () => {
-  const res = await api.get("/clips");
-  return res.data;
-};
-
-api.getClipById = async (clipId) => {
-  const res = await api.get(`/clips/${clipId}`);
-  return res.data;
-};
-
-// -------------------- UPLOAD CLIP (with progress) --------------------
+api.getClips = async () => (await api.get("/clips")).data;
+api.getClipById = async (clipId) => (await api.get(`/clips/${clipId}`)).data;
 api.uploadClip = async (formData, onUploadProgress) => {
-  if (!formData || !formData.get("video")) throw new Error("Video file is required");
-
-  const res = await api.post("/clips", formData, {
+  if (!formData.get("video")) throw new Error("Video file required");
+  return (await api.post("/clips", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-    onUploadProgress, // progress callback
-  });
-
-  return res.data;
+    onUploadProgress,
+  })).data;
 };
+api.deleteClip = async (clipId) => (await api.delete(`/clips/${clipId}`)).data;
 
-api.deleteClip = async (clipId) => {
-  const res = await api.delete(`/clips/${clipId}`);
-  return res.data;
-};
+// Likes
+api.likeClip = async (clipId) => (await api.post(`/clips/${clipId}/like`)).data;
+api.unlikeClip = async (clipId) => (await api.post(`/clips/${clipId}/unlike`)).data;
 
-api.toggleLikeClip = async (clipId) => {
-  const res = await api.post(`/clips/${clipId}/like`);
-  return res.data;
-};
-
-// -------------------- CLIP COMMENTS --------------------
-api.getClipComments = async (clipId) => {
-  const res = await api.get(`/clips/${clipId}/comments`);
-  return res.data;
-};
-
-api.commentClip = async (clipId, content) => {
-  const res = await api.post(`/clips/${clipId}/comments`, { content });
-  return res.data;
-};
+// Comments
+api.getClipComments = async (clipId) => (await api.get(`/clips/${clipId}/comments`)).data;
+api.commentClip = async (clipId, content) =>
+  (await api.post(`/clips/${clipId}/comment`, { content })).data;
 
 // -------------------- USERS --------------------
-api.getUserProfile = async (userId) => {
-  const res = await api.get(`/users/profile/${userId}`);
-  return res.data;
-};
-
-api.getFollowableUsers = async () => {
-  const res = await api.get("/users/following");
-  return res.data;
-};
+// Current logged-in user
+api.getCurrentUser = async () => (await api.get("/users/me")).data;
+// Specific user profile by ID
+api.getUserProfile = async (userId) => (await api.get(`/users/profile/${userId}`)).data;
+// People the user can follow
+api.getFollowableUsers = async () => (await api.get("/users/following")).data;
 
 // -------------------- DMs --------------------
-api.getDMs = async () => {
-  const res = await api.get("/messages/dms");
-  return res.data;
-};
-
-api.createDM = async (recipientId) => {
-  const res = await api.post("/messages/dm/start", { recipient_id: recipientId });
-  return res.data;
-};
-
-api.getDMConversation = async (otherUserId) => {
-  const res = await api.get(`/messages/dm/${otherUserId}`);
-  return res.data;
-};
-
+api.getDMs = async () => (await api.get("/messages/dms")).data;
+api.createDM = async (recipientId) => (await api.post("/messages/dm/start", { recipient_id: recipientId })).data;
+api.getDMConversation = async (otherUserId) => (await api.get(`/messages/dm/${otherUserId}`)).data;
 api.getOrCreateDMConversation = async (otherUserId) => {
   await api.createDM(otherUserId);
   return api.getDMConversation(otherUserId);
 };
 
 // -------------------- GROUPS --------------------
-api.getGroups = async () => {
-  const res = await api.get("/messages/groups");
-  return res.data;
-};
-
-api.getGroupMessages = async (groupId) => {
-  const res = await api.get(`/messages/group/${groupId}`);
-  return res.data;
-};
+api.getGroups = async () => (await api.get("/messages/groups")).data;
+api.getGroupMessages = async (groupId) => (await api.get(`/messages/group/${groupId}`)).data;
 
 // -------------------- MESSAGES --------------------
-api.updateMessage = async (messageId, content) => {
-  const res = await api.put(`/messages/message/${messageId}`, { content });
-  return res.data;
-};
+api.updateMessage = async (messageId, content) => (await api.put(`/messages/message/${messageId}`, { content })).data;
+api.deleteMessage = async (messageId) => (await api.delete(`/messages/message/${messageId}`)).data;
 
-api.deleteMessage = async (messageId) => {
-  const res = await api.delete(`/messages/message/${messageId}`);
-  return res.data;
-};
+// -------------------- SOCKET EVENTS --------------------
+// Clips
+export const onNewClip = (callback) => socket.on("newClip", callback);
+export const onClipLiked = (callback) => socket.on("clipLiked", callback);
+export const onNewClipComment = (callback) => socket.on("newClipComment", callback);
+export const onClipDeleted = (callback) => socket.on("clipDeleted", callback);
+
+// Messages
+export const onDMMessage = (callback) => socket.on("dmMessage", callback);
+export const onGroupMessage = (callback) => socket.on("groupMessage", callback);
+export const onMessageDeleted = (callback) => socket.on("messageDeleted", callback);
 
 export default api;

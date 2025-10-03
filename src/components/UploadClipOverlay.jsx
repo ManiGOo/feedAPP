@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { FaTimes, FaVolumeMute, FaVolumeUp } from "react-icons/fa";
 import api from "../utils/api";
 
-export default function UploadClipOverlay({ show, onClose, onUploaded }) {
+export default function UploadClipOverlay({ show, onClose, onUploaded, currentUser }) {
   const [title, setTitle] = useState("");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -11,48 +11,96 @@ export default function UploadClipOverlay({ show, onClose, onUploaded }) {
   const [progress, setProgress] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+  const [videoDimensions, setVideoDimensions] = useState({ width: 0, height: 0 });
   const videoRef = useRef(null);
 
-  // Create preview URL when file changes
+  // Create preview URL
   useEffect(() => {
-    if (!file) return setPreview(null);
+    if (!file) {
+      setPreview(null);
+      setVideoDimensions({ width: 0, height: 0 });
+      setVideoLoaded(false);
+      return;
+    }
     const url = URL.createObjectURL(file);
     setPreview(url);
-    setLoaded(false); // reset loaded state
+    setVideoLoaded(false);
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // Sync volume/muted state when video is loaded
+  // Sync volume/mute
   useEffect(() => {
-    if (videoRef.current && loaded) {
+    if (videoRef.current && videoLoaded) {
       videoRef.current.volume = volume;
       videoRef.current.muted = muted;
     }
-  }, [volume, muted, loaded]);
+  }, [volume, muted, videoLoaded]);
+
+  const handleLoadedMetadata = () => {
+    if (!videoRef.current) return;
+    const { videoWidth, videoHeight } = videoRef.current;
+    if (!videoWidth || !videoHeight) return;
+
+    const maxWidth = 448;
+    const maxHeight = window.innerHeight - 180; // added extra space for title & button
+    let width = videoWidth;
+    let height = videoHeight;
+    const aspectRatio = width / height;
+
+    if (width > maxWidth) {
+      width = maxWidth;
+      height = width / aspectRatio;
+    }
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * aspectRatio;
+    }
+
+    setVideoDimensions({ width, height });
+    setVideoLoaded(true);
+    videoRef.current.play().catch(() => {});
+  };
+
+  const toggleMute = () => setMuted(prev => !prev);
+  const handleVolumeChange = (e) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    setMuted(val === 0);
+  };
 
   const handleUpload = async () => {
     if (!file || !title.trim()) return;
-
     setUploading(true);
     setProgress(0);
 
     try {
       const formData = new FormData();
-      formData.append("video", file);
+      formData.append("video", file); // must match backend field
       formData.append("title", title.trim());
 
-      const res = await api.uploadClip(formData, (event) => {
-        const percent = Math.round((event.loaded * 100) / event.total);
-        setProgress(percent);
+      const res = await api.uploadClip(formData, event => {
+        setProgress(Math.round((event.loaded * 100) / event.total));
       });
 
-      onUploaded(res); // pass uploaded clip back to parent
+      const enrichedClip = {
+        ...res,
+        author: currentUser?.username || "Unknown",
+        avatar_url: currentUser?.avatar_url || "/default-avatar.png",
+        like_count: 0,
+        comments_count: 0,
+        liked_by_me: false,
+        is_followed_author: false,
+      };
+
+      onUploaded?.(enrichedClip);
+
       setFile(null);
       setTitle("");
-      setProgress(0);
       setPreview(null);
-      setLoaded(false);
+      setVideoLoaded(false);
+      setProgress(0);
+      setVideoDimensions({ width: 0, height: 0 });
       onClose();
     } catch (err) {
       console.error("Upload failed:", err);
@@ -60,17 +108,6 @@ export default function UploadClipOverlay({ show, onClose, onUploaded }) {
     } finally {
       setUploading(false);
     }
-  };
-
-  const toggleMute = () => {
-    setMuted((prev) => !prev);
-    if (!muted && volume === 0) setVolume(0.5);
-  };
-
-  const handleVolumeChange = (e) => {
-    const val = parseFloat(e.target.value);
-    setVolume(val);
-    setMuted(val === 0);
   };
 
   return (
@@ -81,32 +118,37 @@ export default function UploadClipOverlay({ show, onClose, onUploaded }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
         >
           <motion.div
             drag="y"
-            dragConstraints={{ top: 0, bottom: 0 }}
+            dragConstraints={{ top: -50, bottom: 50 }}
             dragElastic={0.2}
+            onDragEnd={(e, info) => info.offset.y > 100 && onClose()}
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ duration: 0.3 }}
-            className="bg-gray-900 w-full max-w-md rounded-2xl flex flex-col p-4 relative"
+            className="bg-gray-900 w-full md:w-auto rounded-2xl flex flex-col p-4 relative overflow-hidden max-h-[90vh]"
+            style={{
+              maxWidth: videoDimensions.width || 448,
+              height: videoDimensions.height ? videoDimensions.height + 140 : "auto",
+            }}
           >
-            {/* Close button */}
             <button
               onClick={onClose}
-              className="absolute top-3 right-3 text-white text-xl z-20"
+              className="absolute top-3 right-3 text-white text-2xl p-2 hover:bg-gray-700 rounded-full z-20"
             >
               <FaTimes />
             </button>
 
-            <h2 className="text-white text-lg font-semibold mb-4">Post a Video</h2>
+            <h2 className="text-white text-lg font-semibold mb-4 text-center">Post a Video</h2>
 
             <input
               type="text"
               placeholder="Video title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={e => setTitle(e.target.value)}
               disabled={uploading}
               className="w-full mb-4 px-3 py-2 rounded bg-gray-800 text-white"
             />
@@ -114,31 +156,29 @@ export default function UploadClipOverlay({ show, onClose, onUploaded }) {
             <input
               type="file"
               accept="video/*"
-              onChange={(e) => setFile(e.target.files[0])}
+              onChange={e => setFile(e.target.files[0])}
               disabled={uploading}
               className="mb-4 text-white"
             />
 
             {preview && (
-              <div className="relative w-full mb-4 rounded overflow-hidden">
+              <div
+                className="relative w-full mb-4 rounded overflow-hidden"
+                style={{
+                  width: videoDimensions.width || "100%",
+                  height: videoDimensions.height || "auto",
+                }}
+              >
                 <video
                   ref={videoRef}
                   src={preview}
-                  className="w-full rounded"
+                  className="w-full h-full object-cover rounded"
                   loop
                   playsInline
-                  onLoadedData={() => {
-                    setLoaded(true);
-                    videoRef.current.play().catch(() => {});
-                  }}
-                  onClick={() => {
-                    if (!loaded) return;
-                    if (videoRef.current.paused) videoRef.current.play();
-                    else videoRef.current.pause();
-                  }}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onClick={() => videoRef.current?.paused ? videoRef.current.play() : videoRef.current.pause()}
                 />
 
-                {/* Volume slider */}
                 <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full">
                   <button onClick={toggleMute} className="text-white text-lg">
                     {muted ? <FaVolumeMute /> : <FaVolumeUp />}
@@ -150,17 +190,13 @@ export default function UploadClipOverlay({ show, onClose, onUploaded }) {
                     step={0.01}
                     value={muted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="w-32 h-1 accent-blue-500 rounded-lg"
+                    className="w-24 h-1 accent-blue-500 rounded-lg"
                   />
                 </div>
 
-                {/* Upload progress bar */}
                 {uploading && (
                   <div className="absolute bottom-0 left-0 w-full h-1 bg-gray-600">
-                    <div
-                      className="h-full bg-blue-500"
-                      style={{ width: `${progress}%` }}
-                    />
+                    <div className="h-full bg-blue-500" style={{ width: `${progress}%` }} />
                   </div>
                 )}
               </div>
@@ -169,7 +205,7 @@ export default function UploadClipOverlay({ show, onClose, onUploaded }) {
             <button
               onClick={handleUpload}
               disabled={uploading || !file || !title.trim()}
-              className="bg-blue-500 text-white px-4 py-2 rounded disabled:opacity-50"
+              className="bg-blue-500 text-white px-4 py-2 rounded w-full mt-auto"
             >
               {uploading ? `Uploading... ${progress}%` : "Upload"}
             </button>
