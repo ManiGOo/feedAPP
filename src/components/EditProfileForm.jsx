@@ -1,6 +1,5 @@
-// src/components/EditProfileForm.jsx
 import { useState } from "react";
-import { Save, X } from "lucide-react";
+import { Save, X, Trash2 } from "lucide-react";
 
 export default function EditProfileForm({ user, onCancel, onSave }) {
   const [formData, setFormData] = useState({
@@ -8,6 +7,7 @@ export default function EditProfileForm({ user, onCancel, onSave }) {
     email: user.email || "",
     bio: user.bio || "",
     avatarFile: null,
+    removeAvatar: false,
   });
 
   const handleSubmit = (e) => {
@@ -22,88 +22,82 @@ export default function EditProfileForm({ user, onCancel, onSave }) {
     >
       {/* Username */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Username
-        </label>
+        <label className="block text-sm font-medium mb-1">Username</label>
         <input
           type="text"
           value={formData.username}
           onChange={(e) =>
             setFormData({ ...formData, username: e.target.value })
           }
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                     bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 
-                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 rounded-lg border bg-gray-50 dark:bg-gray-800"
         />
       </div>
 
       {/* Email */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Email
-        </label>
+        <label className="block text-sm font-medium mb-1">Email</label>
         <input
           type="email"
           value={formData.email}
           onChange={(e) =>
             setFormData({ ...formData, email: e.target.value })
           }
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                     bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 
-                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 rounded-lg border bg-gray-50 dark:bg-gray-800"
         />
       </div>
 
       {/* Bio */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Bio
-        </label>
+        <label className="block text-sm font-medium mb-1">Bio</label>
         <textarea
           rows="3"
           value={formData.bio}
           onChange={(e) => setFormData({ ...formData, bio: e.target.value })}
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
-                     bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 
-                     focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full px-3 py-2 rounded-lg border bg-gray-50 dark:bg-gray-800"
         />
       </div>
 
-      {/* Avatar */}
+      {/* Avatar Upload */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Profile Picture
-        </label>
+        <label className="block text-sm font-medium mb-1">Profile Picture</label>
         <input
           type="file"
-          accept="image/*,video/*"
+          accept="image/*"
           onChange={(e) =>
-            setFormData({ ...formData, avatarFile: e.target.files[0] })
+            setFormData({
+              ...formData,
+              avatarFile: e.target.files[0],
+              removeAvatar: false,
+            })
           }
-          className="block w-full text-sm text-gray-500 
-                     file:mr-4 file:py-2 file:px-4
-                     file:rounded-lg file:border-0
-                     file:text-sm file:font-medium
-                     file:bg-blue-50 file:text-blue-600
-                     hover:file:bg-blue-100 cursor-pointer"
+          className="block w-full text-sm text-gray-500 cursor-pointer"
         />
+
+        {user.avatar_url && (
+          <button
+            type="button"
+            onClick={() =>
+              setFormData({ ...formData, avatarFile: null, removeAvatar: true })
+            }
+            className="mt-2 flex items-center gap-1 text-red-600 hover:text-red-800 text-sm"
+          >
+            <Trash2 size={14} /> Remove current avatar
+          </button>
+        )}
       </div>
 
       {/* Buttons */}
       <div className="flex gap-3 pt-2">
         <button
           type="submit"
-          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-1 
-                     hover:bg-blue-700 transition-colors duration-200"
+          className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-1 hover:bg-blue-700"
         >
           <Save size={16} /> Save
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-100 
-                     px-4 py-2 rounded-lg flex items-center justify-center gap-1 
-                     hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
+          className="flex-1 bg-gray-200 dark:bg-gray-700 px-4 py-2 rounded-lg flex items-center justify-center gap-1"
         >
           <X size={16} /> Cancel
         </button>

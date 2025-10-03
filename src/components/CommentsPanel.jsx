@@ -1,18 +1,22 @@
-// src/components/CommentsPanel.jsx
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import api, { socket, onNewClipComment } from "../utils/api";
+import { useNavigate } from "react-router-dom";
 
 export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
+  const [bottomOffset, setBottomOffset] = useState(0);
   const scrollRef = useRef(null);
+  const navigate = useNavigate();
 
-  // -------------------- FETCH COMMENTS --------------------
+  const bottomMarginPercent = 0.1;
+  const isMobile = window.innerWidth < 768;
+
+  // Fetch comments
   useEffect(() => {
     if (!clip) return;
-
     const fetchComments = async () => {
       try {
         const data = await api.getClipComments(clip.id);
@@ -21,17 +25,12 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
         console.error("Failed to fetch comments:", err);
       }
     };
-
     fetchComments();
   }, [clip]);
 
-  // -------------------- SCROLL TO BOTTOM --------------------
+  // Socket listener
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [comments]);
-
-  // -------------------- SOCKET LISTENER --------------------
-  useEffect(() => {
+    if (!clip) return;
     const handleNewComment = (comment) => {
       if (comment.clip_id === clip.id) {
         setComments((prev) => [...prev, comment]);
@@ -39,21 +38,43 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
       }
     };
     onNewClipComment(handleNewComment);
-
     return () => socket.off("newClipComment", handleNewComment);
   }, [clip.id, onCommentAdded]);
 
-  // -------------------- ADD COMMENT --------------------
+  // Scroll to bottom
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [comments]);
+
+  // Add comment
   const addComment = async () => {
-    if (!newComment.trim()) return;
+    const trimmed = newComment.trim();
+    if (!trimmed) return;
+
     setPosting(true);
     try {
-      await api.commentClip(clip.id, newComment.trim());
+      const tempComment = {
+        id: `temp-${Date.now()}`,
+        content: trimmed,
+        username: "You",
+        clip_id: clip.id,
+      };
+      setComments((prev) => [...prev, tempComment]);
       setNewComment("");
-      // The socket listener will add the comment to state
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+
+      const posted = await api.commentClip(clip.id, trimmed);
+      setComments((prev) =>
+        prev.map((c) => (c.id === tempComment.id ? posted : c))
+      );
+
       onCommentAdded?.();
     } catch (err) {
       console.error("Failed to post comment:", err);
+      setComments((prev) => prev.filter((c) => !c.id.startsWith("temp-")));
     } finally {
       setPosting(false);
     }
@@ -66,27 +87,69 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
     }
   };
 
-  // -------------------- JSX --------------------
+  // Bottom offset for mobile keyboard
+  useEffect(() => {
+    const handleResize = () => {
+      if (isMobile) {
+        const vh = window.innerHeight;
+        setBottomOffset(vh * bottomMarginPercent);
+      } else {
+        setBottomOffset(16);
+      }
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("focusin", handleResize);
+    window.addEventListener("focusout", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("focusin", handleResize);
+      window.removeEventListener("focusout", handleResize);
+    };
+  }, [isMobile]);
+
   return (
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-0 z-50 flex justify-end md:justify-center items-end md:items-center bg-black/40"
+          className="fixed inset-0 z-50 flex justify-center items-end md:items-center bg-black/40 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
           <motion.div
-            drag="y"
+            drag={isMobile ? "y" : false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={0.2}
-            onDragEnd={(e, info) => { if (info.offset.y > 100) onClose(); }}
-            initial={{ y: "100%" }}
+            onDragEnd={(e, info) => { if (info.offset.y > 100 && isMobile) onClose(); }}
+            initial={{ y: isMobile ? "100%" : 0 }}
             animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            exit={{ y: isMobile ? "100%" : 0 }}
             transition={{ duration: 0.3 }}
-            className="bg-gray-900 w-full md:w-[400px] h-[70%] md:h-[80%] rounded-t-2xl md:rounded-2xl flex flex-col p-4 overflow-hidden relative"
+            className="bg-black/80 w-full md:w-[400px] max-h-[80%] rounded-t-2xl md:rounded-2xl flex flex-col p-4 overflow-hidden relative shadow-lg"
+            style={{
+              paddingBottom: bottomOffset + 16,
+              top: !isMobile ? "50%" : undefined,
+              transform: !isMobile ? "translateY(-50%)" : undefined,
+            }}
           >
+            {/* Clip Author */}
+            <div className="flex items-center mb-4 gap-3">
+              <img
+                src={clip.avatar_url || "/default-avatar.png"}
+                alt={clip.author}
+                className="w-10 h-10 rounded-full object-cover cursor-pointer border-2 border-white"
+                onClick={() => navigate(`/profile/${clip.author_id}`)}
+              />
+              <p
+                className="font-semibold text-white cursor-pointer hover:underline"
+                onClick={() => navigate(`/profile/${clip.author_id}`)}
+              >
+                {clip.author}
+              </p>
+            </div>
+
             {/* Close Button */}
             <button
               onClick={onClose}
@@ -99,31 +162,54 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
             {/* Comments List */}
             <div
               ref={scrollRef}
-              className="flex-1 space-y-2 mt-8 md:mt-4 overflow-y-auto"
+              className="flex-1 space-y-2 overflow-y-auto px-1"
+              style={{ paddingBottom: bottomOffset + 64 }}
             >
               {comments.map((c) => (
-                <div key={c.id} className="text-white p-2 border-b border-gray-700 rounded">
-                  <p className="font-semibold">{c.username}</p>
-                  <p className="text-gray-300">{c.content}</p>
-                </div>
+                <motion.div
+                  key={c.id}
+                  className="flex items-start gap-3 p-2 bg-white/10 rounded-2xl"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <img
+                    src={c.avatar_url || "/default-avatar.png"}
+                    alt={c.username}
+                    className="w-10 h-10 rounded-full object-cover cursor-pointer flex-shrink-0 border border-white/30"
+                    onClick={() => navigate(`/profile/${c.user_id}`)}
+                  />
+                  <div className="flex flex-col flex-1">
+                    <p
+                      className="font-semibold text-white cursor-pointer hover:underline"
+                      onClick={() => navigate(`/profile/${c.user_id}`)}
+                    >
+                      {c.username}
+                    </p>
+                    <p className="text-gray-300 break-words">{c.content}</p>
+                  </div>
+                </motion.div>
               ))}
             </div>
 
             {/* New Comment Input */}
-            <div className="flex gap-2 mt-2">
+            <div
+              className={`flex gap-2 ${isMobile ? "absolute left-4 right-4" : "mt-2"}`}
+              style={{ bottom: isMobile ? bottomOffset : undefined }}
+            >
               <input
                 type="text"
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 onKeyDown={handleKeyPress}
-                placeholder="Write a comment..."
-                className="flex-1 px-3 py-2 rounded bg-gray-800 text-white"
+                placeholder="Add a comment..."
+                className="flex-1 px-4 py-2 rounded-full bg-white/10 text-white placeholder-gray-400 focus:outline-none"
                 disabled={posting}
               />
               <button
                 onClick={addComment}
                 disabled={posting || !newComment.trim()}
-                className="bg-blue-500 px-4 rounded text-white disabled:opacity-50"
+                className="bg-blue-500 px-4 rounded-full text-white disabled:opacity-50"
               >
                 Send
               </button>

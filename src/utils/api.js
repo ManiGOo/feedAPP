@@ -28,7 +28,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem("refreshToken");
         if (!refreshToken) throw new Error("No refresh token");
 
-        const res = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+        const res = await api.post("/auth/refresh", { refreshToken });
         localStorage.setItem("accessToken", res.data.accessToken);
 
         original.headers.Authorization = `Bearer ${res.data.accessToken}`;
@@ -85,12 +85,38 @@ api.commentClip = async (clipId, content) =>
   (await api.post(`/clips/${clipId}/comment`, { content })).data;
 
 // -------------------- USERS --------------------
-// Current logged-in user
+
+// Get current logged-in user
 api.getCurrentUser = async () => (await api.get("/users/me")).data;
-// Specific user profile by ID
+
+// Get any user profile by ID
 api.getUserProfile = async (userId) => (await api.get(`/users/profile/${userId}`)).data;
-// People the user can follow
+
+// Get users the current user can follow (followed users)
 api.getFollowableUsers = async () => (await api.get("/users/following")).data;
+
+// Update logged-in user's profile (supports file uploads)
+api.updateProfile = async (data) => {
+  const formData = new FormData();
+
+  if (data.username) formData.append("username", data.username);
+  if (data.email) formData.append("email", data.email);
+  if (data.bio !== undefined) formData.append("bio", data.bio);
+
+  if (data.avatar) {
+    // New file upload
+    formData.append("avatar", data.avatar);
+  } else if (data.removeAvatar) {
+    // Explicit request to remove avatar
+    formData.append("removeAvatar", "true");
+  }
+
+  if (data.password) formData.append("password", data.password);
+
+  return (await api.put("/users/me", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })).data;
+};
 
 // -------------------- DMs --------------------
 api.getDMs = async () => (await api.get("/messages/dms")).data;

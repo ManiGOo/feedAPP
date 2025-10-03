@@ -63,27 +63,33 @@ export default function Profile() {
     fetchProfile();
   }, [id]);
 
-  const handleUpdate = async (formData) => {
-    try {
-      if (formData.avatarFile) {
-        const uploadData = new FormData();
-        uploadData.append("avatar", formData.avatarFile);
-        const resAvatar = await api.post("/users/me/avatar", uploadData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        setProfile(resAvatar.data.user);
-      } else {
-        const res = await api.put("/users/me", formData);
-        setProfile(res.data.user);
-      }
-      setEditing(false);
-      setMessage("Profile updated!");
-      setTimeout(() => setMessage(""), 2000);
-    } catch (err) {
-      console.error("Update failed:", err);
-      setMessage("Update failed.");
+const handleUpdate = async (formData) => {
+  try {
+    const uploadData = new FormData();
+
+    if (formData.username) uploadData.append("username", formData.username);
+    if (formData.email) uploadData.append("email", formData.email);
+    if (formData.bio !== undefined) uploadData.append("bio", formData.bio);
+
+    if (formData.avatarFile) {
+      uploadData.append("avatar", formData.avatarFile);
+    } else if (formData.removeAvatar) {
+      uploadData.append("removeAvatar", "true");
     }
-  };
+
+    const res = await api.put("/users/me", uploadData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    setProfile(res.data.user);
+    setEditing(false);
+    setMessage("Profile updated!");
+    setTimeout(() => setMessage(""), 2000);
+  } catch (err) {
+    console.error("Update failed:", err);
+    setMessage("Update failed.");
+  }
+};
 
   const toggleFollow = async () => {
     try {

@@ -10,20 +10,12 @@ export default function CreatePost({ onNewPost }) {
   const { user } = useAuth();
   const inputRef = useRef(null);
 
-  // File selection & preview
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
     setFile(selected);
-
-    if (selected) {
-      const url = URL.createObjectURL(selected);
-      setPreview(url);
-    } else {
-      setPreview(null);
-    }
+    setPreview(selected ? URL.createObjectURL(selected) : null);
   };
 
-  // Remove selected file
   const handleRemoveFile = () => {
     setFile(null);
     setPreview(null);
@@ -36,32 +28,23 @@ export default function CreatePost({ onNewPost }) {
 
     try {
       setSubmitting(true);
-
-      const formData = new FormData();
-      formData.append("content", content);
-
+      const data = { content, image: null, video: null };
       if (file) {
-        const fieldName = file.type.startsWith("video/") ? "video" : "image";
-        formData.append(fieldName, file);
+        if (file.type.startsWith("video/")) data.video = file;
+        else data.image = file;
       }
 
-      const res = await api.post("/posts", formData, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
-        },
-      });
-
-      onNewPost?.(res.data); // update feed
+      const res = await api.createPost(data);
+      onNewPost?.(res);
       setContent("");
       handleRemoveFile();
     } catch (err) {
-      console.error("Failed to create post", err.response?.data || err.message);
+      console.error("Failed to create post:", err.response?.data || err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Auto-resize textarea
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
@@ -69,7 +52,6 @@ export default function CreatePost({ onNewPost }) {
     }
   }, [content]);
 
-  // Cleanup preview URL
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
 
   return (
@@ -83,21 +65,12 @@ export default function CreatePost({ onNewPost }) {
           placeholder="What's on your mind?"
           className="w-full p-3 rounded border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none overflow-hidden"
         />
-
-        {/* File upload */}
         <input
           type="file"
           accept="image/*,video/*"
           onChange={handleFileChange}
-          className="text-sm text-gray-500
-            file:mr-4 file:py-2 file:px-4
-            file:rounded-lg file:border-0
-            file:text-sm file:font-medium
-            file:bg-blue-50 file:text-blue-600
-            hover:file:bg-blue-100 cursor-pointer"
+          className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-600 hover:file:bg-blue-100 cursor-pointer"
         />
-
-        {/* Preview */}
         {preview && (
           <div className="relative mt-3">
             {file.type.startsWith("image/") ? (
@@ -105,21 +78,10 @@ export default function CreatePost({ onNewPost }) {
             ) : (
               <video src={preview} controls className="max-h-60 w-full rounded-lg" />
             )}
-            <button
-              type="button"
-              onClick={handleRemoveFile}
-              className="absolute top-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600"
-            >
-              Remove
-            </button>
+            <button type="button" onClick={handleRemoveFile} className="absolute top-1 right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full hover:bg-red-600">Remove</button>
           </div>
         )}
-
-        <button
-          type="submit"
-          disabled={submitting || (!content.trim() && !file)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-        >
+        <button type="submit" disabled={submitting || (!content.trim() && !file)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
           {submitting ? "Posting..." : "Post"}
         </button>
       </form>
