@@ -14,6 +14,7 @@ import Follow from "./pages/Follow";
 import MessagesPage from "./pages/MessagesPage";
 import { useAuth } from "./context/AuthContext";
 import ClipsFeed from "./pages/ClipsFeed"; // <-- import the new page
+import EditPost from "./pages/EditPost";
 
 function App() {
   const location = useLocation();
@@ -112,6 +113,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Follow />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/post/edit/:id"
+            element={
+              <ProtectedRoute>
+                <EditPost />
               </ProtectedRoute>
             }
           />

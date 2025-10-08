@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save, X, Trash2 } from "lucide-react";
 
 export default function EditProfileForm({ user, onCancel, onSave }) {
@@ -10,9 +10,30 @@ export default function EditProfileForm({ user, onCancel, onSave }) {
     removeAvatar: false,
   });
 
+  const [previewUrl, setPreviewUrl] = useState(user.avatar_url || null);
+
+  // Update preview immediately when avatarFile changes
+  useEffect(() => {
+    if (formData.avatarFile) {
+      const url = URL.createObjectURL(formData.avatarFile);
+      setPreviewUrl(url);
+
+      // Clean up object URL to prevent memory leaks
+      return () => URL.revokeObjectURL(url);
+    } else if (formData.removeAvatar) {
+      setPreviewUrl(null);
+    } else {
+      setPreviewUrl(user.avatar_url || null);
+    }
+  }, [formData.avatarFile, formData.removeAvatar, user.avatar_url]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     onSave(formData);
+  };
+
+  const handleRemoveAvatar = () => {
+    setFormData({ ...formData, avatarFile: null, removeAvatar: true });
   };
 
   return (
@@ -73,15 +94,25 @@ export default function EditProfileForm({ user, onCancel, onSave }) {
           className="block w-full text-sm text-gray-500 cursor-pointer"
         />
 
-        {user.avatar_url && (
+        {/* Live Preview */}
+        {previewUrl && (
+          <div className="mt-2 w-24 h-24 rounded-full overflow-hidden border border-gray-300">
+            <img
+              src={previewUrl}
+              alt="Avatar preview"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
+        {/* Remove current avatar */}
+        {(previewUrl || user.avatar_url) && (
           <button
             type="button"
-            onClick={() =>
-              setFormData({ ...formData, avatarFile: null, removeAvatar: true })
-            }
+            onClick={handleRemoveAvatar}
             className="mt-2 flex items-center gap-1 text-red-600 hover:text-red-800 text-sm"
           >
-            <Trash2 size={14} /> Remove current avatar
+            <Trash2 size={14} /> Remove avatar
           </button>
         )}
       </div>

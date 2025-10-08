@@ -6,6 +6,7 @@ import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import Loader from "../components/Loader";
 import PostCard from "../components/PostCard";
+import CommentList from "../components/CommentList";
 import EditProfileForm from "../components/EditProfileForm";
 import ButtomNav from "../components/BottomNav";
 import Navbar from "../components/Navbar";
@@ -21,10 +22,12 @@ export default function Profile() {
 
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
+  const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [following, setFollowing] = useState(false);
   const [message, setMessage] = useState("");
+  const [activeTab, setActiveTab] = useState("posts"); // posts | comments
 
   const fetchProfile = async () => {
     if (!id) return;
@@ -36,18 +39,18 @@ export default function Profile() {
 
       userData.followersCount = userData.followersCount ?? 0;
       userData.followingCount = userData.followingCount ?? 0;
-
       setProfile(userData);
       if (!isOwnProfile) setFollowing(userData.isFollowedByMe || false);
 
-      // Map posts to match PostCard structure (image/video)
+      // Map posts to PostCard structure
       const userPosts = (res.data.posts || []).map((p) => ({
         ...p,
         author: p.author || userData.username,
         avatar_url: p.avatar_url || userData.avatar_url || null,
-        commentsNumber: p.comments_count || 0,
+        commentsNumber: p.comments?.length || 0,
         image: p.media_type === "image" ? p.media_url : null,
         video: p.media_type === "video" ? p.media_url : null,
+        comments: p.comments || [],
       }));
 
       setPosts(userPosts);
@@ -59,37 +62,67 @@ export default function Profile() {
     }
   };
 
+  // Fetch only current user's comments safely
+  const fetchMyComments = async () => {
+    if (!currentUser) return; // don't fetch if user not ready
+    setLoading(true);
+    try {
+      const res = await api.get("/comments/me");
+      setComments(res.data || []);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        console.warn("Access forbidden: cannot fetch comments");
+        setMessage("You are not allowed to view comments.");
+      } else {
+        console.error("Failed to fetch comments:", err);
+        setMessage("Failed to load comments.");
+      }
+      setComments([]); // prevent old data from showing
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- useEffect for comments tab ---
+  useEffect(() => {
+    // Only fetch if "comments" tab active and user is logged in
+    if (activeTab === "comments" && currentUser) {
+      fetchMyComments();
+    }
+  }, [activeTab, currentUser]);
+
   useEffect(() => {
     fetchProfile();
   }, [id]);
 
-const handleUpdate = async (formData) => {
-  try {
-    const uploadData = new FormData();
-
-    if (formData.username) uploadData.append("username", formData.username);
-    if (formData.email) uploadData.append("email", formData.email);
-    if (formData.bio !== undefined) uploadData.append("bio", formData.bio);
-
-    if (formData.avatarFile) {
-      uploadData.append("avatar", formData.avatarFile);
-    } else if (formData.removeAvatar) {
-      uploadData.append("removeAvatar", "true");
+  useEffect(() => {
+    if (activeTab === "comments") {
+      fetchMyComments();
     }
+  }, [activeTab]);
 
-    const res = await api.put("/users/me", uploadData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+  const handleUpdate = async (formData) => {
+    try {
+      const uploadData = new FormData();
+      if (formData.username) uploadData.append("username", formData.username);
+      if (formData.email) uploadData.append("email", formData.email);
+      if (formData.bio !== undefined) uploadData.append("bio", formData.bio);
+      if (formData.avatarFile) uploadData.append("avatar", formData.avatarFile);
+      else if (formData.removeAvatar) uploadData.append("removeAvatar", "true");
 
-    setProfile(res.data.user);
-    setEditing(false);
-    setMessage("Profile updated!");
-    setTimeout(() => setMessage(""), 2000);
-  } catch (err) {
-    console.error("Update failed:", err);
-    setMessage("Update failed.");
-  }
-};
+      const res = await api.put("/users/me", uploadData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setProfile(res.data.user);
+      setEditing(false);
+      setMessage("Profile updated!");
+      setTimeout(() => setMessage(""), 2000);
+    } catch (err) {
+      console.error("Update failed:", err);
+      setMessage("Update failed.");
+    }
+  };
 
   const toggleFollow = async () => {
     try {
@@ -103,6 +136,26 @@ const handleUpdate = async (formData) => {
       }));
     } catch (err) {
       console.error("Follow/unfollow failed:", err);
+    }
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      await api.delete(`/comments/${commentId}`);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (err) {
+      console.error("Failed to delete comment:", err);
+    }
+  };
+
+  const handleUpdateComment = async (commentId, newContent) => {
+    try {
+      const res = await api.put(`/comments/${commentId}`, { content: newContent });
+      setComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, content: res.data.content } : c))
+      );
+    } catch (err) {
+      console.error("Failed to update comment:", err);
     }
   };
 
@@ -128,9 +181,8 @@ const handleUpdate = async (formData) => {
 
       {/* Profile Card */}
       <div
-        className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center transition-all ${
-          editing ? "blur-sm pointer-events-none select-none" : ""
-        }`}
+        className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center transition-all ${editing ? "blur-sm pointer-events-none select-none" : ""
+          }`}
       >
         <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500 flex items-center justify-center">
           {profile.avatar_url ? (
@@ -177,11 +229,10 @@ const handleUpdate = async (formData) => {
             <div className="flex justify-center mt-4">
               <button
                 onClick={toggleFollow}
-                className={`px-4 py-2 rounded-lg font-medium ${
-                  following
+                className={`px-4 py-2 rounded-lg font-medium ${following
                     ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                     : "bg-blue-500 text-white hover:bg-blue-600"
-                }`}
+                  }`}
               >
                 {following ? "Following" : "Follow"}
               </button>
@@ -192,30 +243,56 @@ const handleUpdate = async (formData) => {
         {message && <p className="text-sm text-green-600 mt-3">{message}</p>}
       </div>
 
-      {/* Posts */}
-      <div className="mt-6 space-y-4">
-        <h3 className="font-semibold text-lg">
-          {isOwnProfile ? "Your Posts" : `${profile.username}'s Posts`}
-        </h3>
+      {/* Tabs */}
+      <div className="mt-6 flex border-b border-gray-200 dark:border-gray-700">
+        <button
+          className={`flex-1 py-2 text-center font-medium ${activeTab === "posts"
+              ? "border-b-2 border-blue-500 text-blue-600"
+              : "text-gray-500"
+            }`}
+          onClick={() => setActiveTab("posts")}
+        >
+          Posts
+        </button>
+        <button
+          className={`flex-1 py-2 text-center font-medium ${activeTab === "comments"
+              ? "border-b-2 border-blue-500 text-blue-600"
+              : "text-gray-500"
+            }`}
+          onClick={() => setActiveTab("comments")}
+        >
+          Comments
+        </button>
+      </div>
 
-        {posts.length > 0 ? (
-          posts.map((post) => (
-            <PostCard
-              key={post.id}
-              {...post}
-              showDelete={isOwnProfile}
-              onDelete={async (postId) => {
-                try {
-                  await api.delete(`/posts/${postId}`);
-                  setPosts((prev) => prev.filter((p) => p.id !== postId));
-                } catch (err) {
-                  console.error("Failed to delete post:", err);
-                }
-              }}
-            />
-          ))
+      {/* Tab Content */}
+      <div className="mt-4 space-y-4">
+        {activeTab === "posts" ? (
+          posts.length > 0 ? (
+            posts.map((post) => (
+              <PostCard
+                key={post.id}
+                {...post}
+                showDelete={isOwnProfile}
+                onDelete={async (postId) => {
+                  try {
+                    await api.delete(`/posts/${postId}`);
+                    setPosts((prev) => prev.filter((p) => p.id !== postId));
+                  } catch (err) {
+                    console.error("Failed to delete post:", err);
+                  }
+                }}
+              />
+            ))
+          ) : (
+            <p className="text-gray-500">No posts yet.</p>
+          )
         ) : (
-          <p className="text-gray-500">No posts yet.</p>
+          <CommentList
+            commentsData={comments}
+            onDeleteComment={handleDeleteComment}
+            onUpdateComment={handleUpdateComment}
+          />
         )}
       </div>
 

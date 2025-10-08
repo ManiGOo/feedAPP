@@ -116,7 +116,7 @@ export default function PostCard({
                     Delete
                   </button>
                   <button
-                    onClick={() => setShowMenu(false)}
+                    onClick={() => navigate(`/post/edit/${id}`)}
                     className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-xl"
                   >
                     Edit
@@ -165,9 +165,8 @@ export default function PostCard({
         <button
           onClick={handleLike}
           disabled={!user}
-          className={`flex items-center gap-1 text-sm transition ${
-            liked ? "text-red-500" : "text-gray-500 dark:text-gray-400"
-          } ${!user ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}
+          className={`flex items-center gap-1 text-sm transition ${liked ? "text-red-500" : "text-gray-500 dark:text-gray-400"
+            } ${!user ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}
         >
           <motion.div
             animate={heartAnim ? { scale: [1, 1.6, 1] } : { scale: 1 }}

@@ -44,6 +44,7 @@ api.interceptors.response.use(
   }
 );
 
+
 // -------------------- SOCKET.IO --------------------
 const token = localStorage.getItem("accessToken");
 export const socket = io(API_URL.replace("/api", ""), {
@@ -117,6 +118,10 @@ api.updateProfile = async (data) => {
     headers: { "Content-Type": "multipart/form-data" },
   })).data;
 };
+// Search users
+api.searchUsers = async (query) =>
+  (await api.get(`/users/search?q=${encodeURIComponent(query)}`)).data;
+
 
 // -------------------- DMs --------------------
 api.getDMs = async () => (await api.get("/messages/dms")).data;

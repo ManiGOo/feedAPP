@@ -12,10 +12,17 @@ export default function Sidebar({
   user,
   setActiveChat,
   closeSidebar,
+  socket, // pass socket from parent
 }) {
   const handleSelectChat = (chatObj) => {
     setActiveChat(chatObj);
     if (closeSidebar) closeSidebar(); // close sidebar on mobile
+
+    // Auto-join socket room for DM or group
+    if (socket) {
+      if (chatObj.type === "dm") socket.emit("joinDM", chatObj.id);
+      if (chatObj.type === "group") socket.emit("joinGroup", chatObj.id);
+    }
   };
 
   return (
@@ -36,7 +43,11 @@ export default function Sidebar({
         {searchLoading && <div className="p-2 text-gray-500 text-sm">Searching...</div>}
         {!searchLoading &&
           searchResults.map((u) => (
-            <UserItem key={u.id} user={u} onClick={() => startDM(u)} />
+            <UserItem
+              key={u.id}
+              user={u}
+              onClick={() => startDM(u, socket, closeSidebar)}
+            />
           ))}
       </div>
 
