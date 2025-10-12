@@ -96,20 +96,29 @@ api.getUserProfile = async (userId) => (await api.get(`/users/profile/${userId}`
 // Search users (debounced search in frontend)
 api.searchUsers = async (query) => {
   if (!query?.trim()) return [];
-  
+
   // Use the profile endpoint with query param
   return (await api.get(`/users/profile/me?q=${encodeURIComponent(query)}`)).data;
+};
+// Add under // -------------------- USERS -------------------- or a new // -------------------- FOLLOW --------------------
+api.getUserFollowing = async (userId) => {
+  if (!userId) throw new Error("User ID required");
+  return (await api.get(`/follow/following/${userId}`)).data;
 };
 // 🔹 Search among users you follow by username
 api.searchFollowingByUsername = async (query) => {
   if (!query || !query.trim()) return [];
 
   try {
-    const res = await api.get(`/follow/following/search?q=${encodeURIComponent(query)}`);
+    const res = await api.get(`/follow/following/search?q=${encodeURIComponent(query.trim())}`);
     return res.data || [];
   } catch (err) {
+    if (err.response?.status === 400 || err.response?.status === 404) {
+      console.warn("Bad search request:", err.response.data);
+      return [];
+    }
     console.error("Error searching following users:", err);
-    return [];
+    throw err;  // Let MessagesPage catch for state
   }
 };
 // Update logged-in user's profile (supports file uploads)

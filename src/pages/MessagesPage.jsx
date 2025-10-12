@@ -8,7 +8,7 @@ import DMChat from "../components/DMChat.jsx";
 import GroupChat from "../components/GroupChat.jsx";
 import Loader from "../components/Loader.jsx";
 import BottomNav from "../components/BottomNav.jsx";
-import { Menu } from "lucide-react";
+import { Menu, ArrowLeft, Search } from "lucide-react";
 
 export default function MessagesPage({ user }) {
   const [activeChat, setActiveChat] = useState(null);
@@ -20,15 +20,51 @@ export default function MessagesPage({ user }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [followingUsers, setFollowingUsers] = useState([]);
+  const [loadingFollowing, setLoadingFollowing] = useState(true);
+  const [followingError, setFollowingError] = useState(null);
 
   const socket = useSocket(localStorage.getItem("token"));
 
   // 🔹 Track mobile resize
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Auto-adjust view on resize
+      if (!mobile && activeChat) {
+        setSidebarOpen(true); // Ensure sidebar visible on desktop
+      }
+    };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [activeChat]);
+
+  // 🔹 Initial view: On mobile, show sidebar by default if no chat selected
+  useEffect(() => {
+    if (isMobile && !activeChat) {
+      setSidebarOpen(true);
+    }
+  }, [isMobile, activeChat]);
+
+  // Fetch following
+  useEffect(() => {
+    const fetchFollowing = async () => {
+      setLoadingFollowing(true);
+      setFollowingError(null);
+      try {
+        const data = await api.getUserFollowing(user.id);
+        setFollowingUsers(data || []);
+      } catch (err) {
+        console.error("Fetch following error:", err);
+        setFollowingError(err.response?.data?.error || "Failed to load following");
+      } finally {
+        setLoadingFollowing(false);
+      }
+    };
+
+    if (user?.id) fetchFollowing();
+  }, [user.id]);
 
   // 🔹 Fetch existing DMs & group chats
   useEffect(() => {
@@ -72,8 +108,7 @@ export default function MessagesPage({ user }) {
     return () => socket.off("dmMessage", handleIncomingDM);
   }, [socket, user.id]);
 
-  // 🔹 Search following users by username (calls backend `/following/search`)
-  // 🔹 Search following users by username (calls backend `/following/search`)
+  // 🔹 Search following users
   useEffect(() => {
     if (!userSearchTerm.trim()) {
       setSearchResults([]);
@@ -82,10 +117,16 @@ export default function MessagesPage({ user }) {
 
     const timer = setTimeout(async () => {
       setSearchLoading(true);
-      const results = await api.searchFollowingByUsername(userSearchTerm);
-      setSearchResults(results);
-      setSearchLoading(false);
-    }, 300); // debounce 300ms
+      try {
+        const results = await api.searchFollowingByUsername(userSearchTerm);
+        setSearchResults(results);
+      } catch (err) {
+        console.error('Search failed:', err);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [userSearchTerm]);
@@ -106,7 +147,7 @@ export default function MessagesPage({ user }) {
     });
 
     setUserSearchTerm("");
-    if (isMobile) setSidebarOpen(false);
+    if (isMobile) setSidebarOpen(false); // Switch to chat view on mobile
   };
 
   // 🔹 Open group chat
@@ -120,32 +161,60 @@ export default function MessagesPage({ user }) {
     if (isMobile) setSidebarOpen(false);
   };
 
+  // 🔹 Back to sidebar on mobile
+  const handleBackToSidebar = () => {
+    setActiveChat(null);
+    if (isMobile) setSidebarOpen(true);
+  };
+
   // 🔹 Loader for initial state
   if (!user || loadingChats) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center h-screen bg-gray-50 dark:bg-gray-900">
         <Loader size={50} color="#3b82f6" />
       </div>
     );
   }
 
+  // Mobile: Conditional full-screen views
+  const showSidebar = isMobile ? (!activeChat || sidebarOpen) : true;
+  const showChat = isMobile ? (activeChat && !sidebarOpen) : true;
+
   return (
-    <div className="flex h-screen max-w-6xl mx-auto border dark:border-gray-700 rounded-xl overflow-hidden relative">
-      {/* Mobile toggle */}
-      {isMobile && !sidebarOpen && (
+    <div className="flex h-screen max-w-6xl mx-auto bg-gray-50 dark:bg-gray-900 overflow-hidden relative">
+      {/* Mobile toggle for sidebar (if chat active) */}
+      {isMobile && activeChat && (
         <button
-          className="fixed top-4 left-4 z-50 p-2 rounded bg-gray-200 dark:bg-gray-700 shadow-lg"
-          onClick={() => setSidebarOpen(true)}
+          className="fixed top-4 left-4 z-50 p-2 rounded-full bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700"
+          onClick={handleBackToSidebar}
         >
-          <Menu size={20} />
+          <ArrowLeft size={20} className="text-gray-700 dark:text-gray-300" />
         </button>
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Full screen on mobile if no chat or open */}
       <div
-        className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-950 z-40 transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 md:relative`}
+        className={`${
+          showSidebar
+            ? "fixed inset-0 z-40 bg-white dark:bg-gray-950 md:relative md:inset-auto"
+            : "hidden"
+        } flex flex-col transition-all duration-300 ease-in-out`}
       >
+        {/* Modern Header for Sidebar */}
+        <div className="p-4 border-b dark:border-gray-800 sticky top-0 bg-white dark:bg-gray-950 z-10 shadow-sm">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Messages</h2>
+          <div className="relative">
+            <input
+              type="text"
+              value={userSearchTerm}
+              onChange={(e) => setUserSearchTerm(e.target.value)}
+              placeholder="Search users..."
+              className="w-full pl-10 pr-4 py-2 rounded-full border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            />
+            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+          </div>
+        </div>
+
         <Sidebar
           dms={dms}
           groups={groups}
@@ -158,24 +227,18 @@ export default function MessagesPage({ user }) {
           user={user}
           setActiveChat={setActiveChat}
           closeSidebar={() => setSidebarOpen(false)}
+          followingUsers={followingUsers}
+          loadingFollowing={loadingFollowing}
+          followingError={followingError}
+          isMobile={isMobile} // Pass for internal mobile tweaks if needed
         />
       </div>
 
-      {/* Overlay for mobile */}
-      {sidebarOpen && isMobile && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-30 z-30 md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      {/* Chat Area */}
+      {/* Chat Area - Full screen on mobile if active */}
       <div
-        className={`flex-1 bg-white dark:bg-gray-950 relative flex flex-col transition-transform duration-300 ${sidebarOpen && !isMobile ? "md:ml-64" : ""
-          } ${sidebarOpen && isMobile
-            ? "translate-x-64 md:translate-x-0"
-            : "translate-x-0"
-          }`}
+        className={`${
+          showChat ? "flex-1 flex flex-col" : "hidden md:flex"
+        } bg-white dark:bg-gray-950 relative transition-all duration-300 ease-in-out`}
       >
         {activeChat ? (
           activeChat.type === "dm" ? (
@@ -187,6 +250,7 @@ export default function MessagesPage({ user }) {
                 username: activeChat.username,
               }}
               socket={socket}
+              onBack={isMobile ? handleBackToSidebar : null} // Assume DMChat accepts onBack prop for header
             />
           ) : (
             <GroupChat
@@ -194,12 +258,18 @@ export default function MessagesPage({ user }) {
               user={user}
               groupId={activeChat.id}
               socket={socket}
+              onBack={isMobile ? handleBackToSidebar : null}
             />
           )
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500 text-center px-4">
-            Select a chat to start messaging
-          </div>
+          !isMobile && (
+            <div className="flex items-center justify-center h-full text-gray-500 text-center px-4">
+              <div className="max-w-sm">
+                <h3 className="text-xl font-medium mb-2">Select a chat</h3>
+                <p className="text-sm">Choose from your direct messages, groups, or start a new conversation.</p>
+              </div>
+            </div>
+          )
         )}
       </div>
 

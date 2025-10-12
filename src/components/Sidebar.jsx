@@ -1,17 +1,19 @@
 import React, { useMemo } from "react";
+import { Search, Users, MessageCircle, Users as UsersIcon } from "lucide-react";
 
 export default function Sidebar({
   dms,
   groups,
-  followingUsers = [], // 👈 new prop
-  userSearchTerm,
-  setUserSearchTerm,
+  followingUsers = [],
   searchResults,
   searchLoading,
   startDM,
   openGroup,
   setActiveChat,
   closeSidebar,
+  loadingFollowing = false,
+  followingError = null,
+  isMobile = false, // For potential mobile-specific tweaks
 }) {
   const handleSelectChat = (chatObj) => {
     setActiveChat(chatObj);
@@ -73,23 +75,12 @@ export default function Sidebar({
           }}
         />
       )),
-    [followingUsers]
+    [followingUsers, startDM, closeSidebar]
   );
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-950 w-64 md:w-64 overflow-y-auto">
-      {/* Search */}
-      <div className="p-4 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-950 z-10">
-        <input
-          type="text"
-          value={userSearchTerm}
-          onChange={(e) => setUserSearchTerm(e.target.value)}
-          placeholder="Search users..."
-          className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-colors text-sm md:text-base"
-        />
-      </div>
-
-      {/* Search results */}
+    <div className="flex flex-col h-full bg-white dark:bg-gray-950 overflow-y-auto">
+      {/* Search results - Integrated as overlay-like section */}
       <SearchResults
         results={searchResults}
         loading={searchLoading}
@@ -99,49 +90,75 @@ export default function Sidebar({
         }}
       />
 
-      {/* Chat lists */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      {/* Chat lists - Enhanced padding, spacing */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-8 pb-20"> {/* Extra bottom padding for mobile scroll */}
         {/* Following Users */}
-        <ChatSection title="Following">
-          {followingUsers.length ? (
-            memoizedFollowing
+        <ChatSection title="Following" icon={<Users size={16} className="text-gray-500 dark:text-gray-400" />}>
+          {loadingFollowing ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-blue-500"></div>
+            </div>
+          ) : followingError ? (
+            <p className="text-red-500 text-sm animate-fade-in">{followingError}</p>
+          ) : followingUsers.length ? (
+            <div className="space-y-1 animate-fade-in">{memoizedFollowing}</div>
           ) : (
-            <p className="text-gray-500 text-sm">No following users</p>
+            <p className="text-gray-500 text-sm italic">Start following users to message them</p>
           )}
         </ChatSection>
 
         {/* DMs */}
-        <ChatSection title="Direct Messages">{memoizedDMs}</ChatSection>
+        <ChatSection title="Direct Messages" icon={<MessageCircle size={16} className="text-gray-500 dark:text-gray-400" />}>
+          {memoizedDMs.length ? (
+            <div className="space-y-1 animate-fade-in">{memoizedDMs}</div>
+          ) : (
+            <p className="text-gray-500 text-sm italic">No direct messages yet</p>
+          )}
+        </ChatSection>
 
         {/* Groups */}
-        <ChatSection title="Groups">{memoizedGroups}</ChatSection>
+        <ChatSection title="Groups" icon={<UsersIcon size={16} className="text-gray-500 dark:text-gray-400" />}>
+          {memoizedGroups.length ? (
+            <div className="space-y-1 animate-fade-in">{memoizedGroups}</div>
+          ) : (
+            <p className="text-gray-500 text-sm italic">Join or create groups</p>
+          )}
+        </ChatSection>
       </div>
     </div>
   );
 }
 
 // ---------------- Components ----------------
-function ChatSection({ title, children }) {
+function ChatSection({ title, children, icon }) {
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-sm md:text-base font-medium text-gray-600 dark:text-gray-300">
+    <div className="flex flex-col gap-3">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
+        {icon}
         {title}
       </h3>
-      <div className="flex flex-col gap-1">{children}</div>
+      <div className="flex flex-col gap-2">{children}</div>
     </div>
   );
 }
 
 // ---------------- Search Results ----------------
 const SearchResults = React.memo(({ results, loading, startDM }) => {
-  if (loading)
+  if (loading) {
     return (
-      <div className="px-4 mt-2 p-2 text-gray-500 text-sm">Searching...</div>
+      <div className="px-5 py-3 border-b dark:border-gray-800 bg-gray-50 dark:bg-gray-900 animate-pulse">
+        <div className="flex items-center gap-2 text-gray-500 text-sm">
+          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-blue-500"></div>
+          Searching...
+        </div>
+      </div>
     );
+  }
   if (!results.length) return null;
 
   return (
-    <div className="px-4 mt-2 space-y-1">
+    <div className="px-5 py-3 border-b dark:border-gray-800 bg-gray-50 dark:bg-gray-900 space-y-1 animate-fade-in">
+      <p className="text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Search Results</p>
       {results.map((u) => (
         <UserItem key={u.id} user={u} onClick={() => startDM(u)} />
       ))}
@@ -153,10 +170,10 @@ function UserItem({ user, onClick }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-3 w-full text-left p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors text-sm md:text-base"
+      className="flex items-center gap-3 w-full text-left p-3 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 ease-in-out transform hover:scale-105 shadow-sm hover:shadow-md text-sm"
     >
       <Avatar user={user} />
-      <span className="text-gray-800 dark:text-gray-100 truncate">
+      <span className="text-gray-800 dark:text-gray-100 truncate font-medium">
         {user.username}
       </span>
     </button>
@@ -167,15 +184,15 @@ function ChatItem({ name, avatar, lastMessage, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex items-center gap-3 p-2 cursor-pointer rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
+      className="flex items-center gap-3 p-3 cursor-pointer rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition=all duration-200 ease-in-out transform hover:scale-105 shadow-sm hover:shadow-md"
     >
       <Avatar avatar={avatar} name={name} />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-gray-900 dark:text-gray-100 truncate text-sm md:text-base">
+        <div className="font-semibold text-gray-900 dark:text-gray-100 truncate text-base">
           {name}
         </div>
         {lastMessage && (
-          <div className="text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate">
+          <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
             {lastMessage}
           </div>
         )}
@@ -189,7 +206,7 @@ function Avatar({ user, avatar, name }) {
   const displayName = user?.username || name || "User";
 
   return (
-    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden text-sm md:text-base font-bold text-white flex-shrink-0">
+    <div className="w-12 h-12 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center overflow-hidden text-lg font-bold text-white flex-shrink-0 shadow-md transition-transform duration-200 hover:scale-110">
       {src ? (
         <img src={src} alt="avatar" className="w-full h-full object-cover" />
       ) : (
@@ -198,3 +215,14 @@ function Avatar({ user, avatar, name }) {
     </div>
   );
 }
+
+// Optional: Add these to your global CSS for animations (or use tailwind-animate plugin)
+ /*
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+*/
