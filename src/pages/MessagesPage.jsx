@@ -23,14 +23,14 @@ export default function MessagesPage({ user }) {
 
   const socket = useSocket(localStorage.getItem("token"));
 
-  // Track mobile resize
+  // 🔹 Track mobile resize
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Fetch chats
+  // 🔹 Fetch existing DMs & group chats
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -46,66 +46,70 @@ export default function MessagesPage({ user }) {
     fetchChats();
   }, []);
 
-  // Socket: update DMs dynamically
+  // 🔹 Socket: live DM updates
   useEffect(() => {
     if (!socket) return;
+
     const handleIncomingDM = (msg) => {
       setDMs((prev) => {
-        const existing = prev.find(
-          (d) => d.otherUserId === msg.sender_id || d.otherUserId === msg.recipient_id
-        );
+        const otherUserId = msg.sender_id === user.id ? msg.recipient_id : msg.sender_id;
+        const existing = prev.find((d) => d.otherUserId === otherUserId);
+
         const newDM = {
-          otherUserId: msg.sender_id === user.id ? msg.recipient_id : msg.sender_id,
+          otherUserId,
           username: msg.sender_username || "User",
           lastMessage: msg.content,
         };
+
         if (existing) {
           return [newDM, ...prev.filter((d) => d.otherUserId !== existing.otherUserId)];
         }
         return [newDM, ...prev];
       });
     };
+
     socket.on("dmMessage", handleIncomingDM);
     return () => socket.off("dmMessage", handleIncomingDM);
   }, [socket, user.id]);
 
-  // Search users
+  // 🔹 Search following users by username (calls backend `/following/search`)
+  // 🔹 Search following users by username (calls backend `/following/search`)
   useEffect(() => {
-    if (!userSearchTerm.trim()) return setSearchResults([]);
-    const timer = setTimeout(async () => {
-      try {
-        setSearchLoading(true);
-        const users = await api.getFollowableUsers();
-        setSearchResults(
-          users.filter(
-            (u) => u.username.toLowerCase().includes(userSearchTerm.toLowerCase()) && u.id !== user.id
-          )
-        );
-      } catch (err) {
-        console.error("Search failed:", err);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [userSearchTerm, user.id]);
+    if (!userSearchTerm.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      const results = await api.searchFollowingByUsername(userSearchTerm);
+      setSearchResults(results);
+      setSearchLoading(false);
+    }, 300); // debounce 300ms
+
+    return () => clearTimeout(timer);
+  }, [userSearchTerm]);
+
+  // 🔹 Start or open a DM
   const startDM = (otherUser) => {
     let dm = dms.find((d) => d.otherUserId === otherUser.id);
     if (!dm) {
       dm = { otherUserId: otherUser.id, username: otherUser.username };
       setDMs([dm, ...dms]);
     }
+
     setActiveChat({
       type: "dm",
       id: dm.otherUserId,
       username: dm.username,
       key: uuidv4(),
     });
+
     setUserSearchTerm("");
     if (isMobile) setSidebarOpen(false);
   };
 
+  // 🔹 Open group chat
   const openGroup = (group) => {
     setActiveChat({
       type: "group",
@@ -116,6 +120,7 @@ export default function MessagesPage({ user }) {
     if (isMobile) setSidebarOpen(false);
   };
 
+  // 🔹 Loader for initial state
   if (!user || loadingChats) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -138,9 +143,8 @@ export default function MessagesPage({ user }) {
 
       {/* Sidebar */}
       <div
-        className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-950 z-40 transform transition-transform duration-300 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 md:relative`}
+        className={`fixed top-0 left-0 h-full w-64 bg-white dark:bg-gray-950 z-40 transform transition-transform duration-300 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0 md:relative`}
       >
         <Sidebar
           dms={dms}
@@ -157,7 +161,7 @@ export default function MessagesPage({ user }) {
         />
       </div>
 
-      {/* Overlay */}
+      {/* Overlay for mobile */}
       {sidebarOpen && isMobile && (
         <div
           className="fixed inset-0 bg-black bg-opacity-30 z-30 md:hidden"
@@ -165,18 +169,23 @@ export default function MessagesPage({ user }) {
         />
       )}
 
-      {/* Chat area with slide animation */}
+      {/* Chat Area */}
       <div
-        className={`flex-1 bg-white dark:bg-gray-950 relative flex flex-col transition-transform duration-300 ${
-          sidebarOpen && !isMobile ? "md:ml-64" : ""
-        } ${sidebarOpen && isMobile ? "translate-x-64 md:translate-x-0" : "translate-x-0"}`}
+        className={`flex-1 bg-white dark:bg-gray-950 relative flex flex-col transition-transform duration-300 ${sidebarOpen && !isMobile ? "md:ml-64" : ""
+          } ${sidebarOpen && isMobile
+            ? "translate-x-64 md:translate-x-0"
+            : "translate-x-0"
+          }`}
       >
         {activeChat ? (
           activeChat.type === "dm" ? (
             <DMChat
               key={activeChat.key}
               user={user}
-              otherUser={{ id: activeChat.id, username: activeChat.username }}
+              otherUser={{
+                id: activeChat.id,
+                username: activeChat.username,
+              }}
               socket={socket}
             />
           ) : (

@@ -93,9 +93,25 @@ api.getCurrentUser = async () => (await api.get("/users/me")).data;
 // Get any user profile by ID
 api.getUserProfile = async (userId) => (await api.get(`/users/profile/${userId}`)).data;
 
-// Get users the current user can follow (followed users)
-api.getFollowableUsers = async () => (await api.get("/users/following")).data;
+// Search users (debounced search in frontend)
+api.searchUsers = async (query) => {
+  if (!query?.trim()) return [];
+  
+  // Use the profile endpoint with query param
+  return (await api.get(`/users/profile/me?q=${encodeURIComponent(query)}`)).data;
+};
+// 🔹 Search among users you follow by username
+api.searchFollowingByUsername = async (query) => {
+  if (!query || !query.trim()) return [];
 
+  try {
+    const res = await api.get(`/follow/following/search?q=${encodeURIComponent(query)}`);
+    return res.data || [];
+  } catch (err) {
+    console.error("Error searching following users:", err);
+    return [];
+  }
+};
 // Update logged-in user's profile (supports file uploads)
 api.updateProfile = async (data) => {
   const formData = new FormData();
@@ -119,8 +135,6 @@ api.updateProfile = async (data) => {
   })).data;
 };
 // Search users
-api.searchUsers = async (query) =>
-  (await api.get(`/users/search?q=${encodeURIComponent(query)}`)).data;
 
 
 // -------------------- DMs --------------------

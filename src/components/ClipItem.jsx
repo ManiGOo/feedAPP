@@ -1,33 +1,57 @@
-import React, { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { FaHeart, FaComment, FaPlay } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 
-const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) => {
+function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
   const videoRef = useRef(null);
   const navigate = useNavigate();
 
-  const [paused, setPaused] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [likes, setLikes] = useState(clip.like_count || 0);
   const [likedByMe, setLikedByMe] = useState(clip.liked_by_me || false);
   const [commentsCount, setCommentsCount] = useState(clip.comments_count || 0);
   const [showHeart, setShowHeart] = useState(false);
+  const [showPlayButton, setShowPlayButton] = useState(false);
 
-  // Forward videoRef to parent
-  useImperativeHandle(ref, () => ({
-    videoRef: videoRef.current,
-  }));
+  // Sync local counts with prop changes (e.g., external updates via sockets or comments)
+  useEffect(() => {
+    setLikes(clip.like_count || 0);
+    setLikedByMe(clip.liked_by_me || false);
+    setCommentsCount(clip.comments_count || 0);
+  }, [clip.like_count, clip.liked_by_me, clip.comments_count]);
+
+  // Handle autoplay/pause based on active state
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    if (isActive) {
+      videoRef.current.muted = false;
+      videoRef.current.play().catch(() => {
+        videoRef.current.muted = true;
+        videoRef.current.play().catch(console.error);
+      });
+      setShowPlayButton(false); // Ensure no play button on switch/autoplay
+    } else {
+      videoRef.current.pause();
+      videoRef.current.muted = true;
+    }
+  }, [isActive]);
 
   const togglePlayPause = useCallback(() => {
     if (!videoRef.current) return;
+
     if (videoRef.current.paused) {
-      videoRef.current.play().catch(() => setPaused(true));
-      setPaused(false);
+      videoRef.current.muted = false; // Try unmute on user gesture
+      videoRef.current.play().catch(() => {
+        videoRef.current.muted = true;
+        videoRef.current.play().catch(console.error);
+      });
+      setShowPlayButton(false);
     } else {
       videoRef.current.pause();
-      setPaused(true);
+      setShowPlayButton(true);
     }
   }, []);
 
@@ -48,7 +72,6 @@ const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) =>
     }
   };
 
-  // Double-tap like
   let lastTap = 0;
   const handleDoubleTap = () => {
     const now = Date.now();
@@ -59,13 +82,6 @@ const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) =>
     }
     lastTap = now;
   };
-
-  // Autoplay on mount / clip change
-  useEffect(() => {
-    if (!videoRef.current) return;
-    videoRef.current.play().catch(() => setPaused(true));
-    setPaused(false);
-  }, [clip]);
 
   return (
     <div className="relative flex justify-center items-center w-full h-full bg-black overflow-hidden">
@@ -78,7 +94,6 @@ const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) =>
             className="w-full h-full object-cover rounded-2xl cursor-pointer"
             loop
             playsInline
-            muted
             onClick={togglePlayPause}
             onDoubleClick={handleDoubleTap}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -102,7 +117,7 @@ const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) =>
         )}
       </div>
 
-      {paused && (
+      {showPlayButton && (
         <motion.button
           onClick={togglePlayPause}
           className="absolute inset-0 m-auto w-16 h-16 flex justify-center items-center text-white bg-black/60 rounded-full z-20"
@@ -116,7 +131,7 @@ const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) =>
           <FaHeart className={`text-3xl ${likedByMe ? "text-red-500" : "text-white"}`} />
           <span className="text-sm">{likes}</span>
         </button>
-        <button onClick={() => onCommentClick?.(clip)} className="flex flex-col items-center text-white">
+        <button onClick={onCommentClick} className="flex flex-col items-center text-white">
           <FaComment className="text-3xl" />
           <span className="text-sm">{commentsCount}</span>
         </button>
@@ -135,6 +150,6 @@ const ClipItem = forwardRef(({ clip, onCommentClick, updateClipCounts }, ref) =>
       </div>
     </div>
   );
-});
+}
 
 export default ClipItem;

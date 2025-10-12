@@ -11,7 +11,6 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
   const scrollRef = useRef(null);
   const navigate = useNavigate();
 
-  const bottomMarginPercent = 0.1;
   const isMobile = window.innerWidth < 768;
 
   // Fetch comments
@@ -87,52 +86,31 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
     }
   };
 
-  // Bottom offset for mobile keyboard
+  // Bottom offset for safe areas (no dynamic keyboard adjustment needed in centered modal)
   useEffect(() => {
-    const handleResize = () => {
-      if (isMobile) {
-        const vh = window.innerHeight;
-        setBottomOffset(vh * bottomMarginPercent);
-      } else {
-        setBottomOffset(16);
-      }
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    window.addEventListener("focusin", handleResize);
-    window.addEventListener("focusout", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("focusin", handleResize);
-      window.removeEventListener("focusout", handleResize);
-    };
+    setBottomOffset(isMobile ? 34 : 16); // Common safe-area-inset-bottom value for mobiles like iPhone
   }, [isMobile]);
 
   return (
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-0 z-50 flex justify-center items-end md:items-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex justify-center items-center bg-black/40 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          onClick={onClose}
         >
           <motion.div
-            drag={isMobile ? "y" : false}
-            dragConstraints={{ top: 0, bottom: 0 }}
-            dragElastic={0.2}
-            onDragEnd={(e, info) => { if (info.offset.y > 100 && isMobile) onClose(); }}
-            initial={{ y: isMobile ? "100%" : 0 }}
-            animate={{ y: 0 }}
-            exit={{ y: isMobile ? "100%" : 0 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.3 }}
-            className="bg-black/80 w-full md:w-[400px] max-h-[80%] rounded-t-2xl md:rounded-2xl flex flex-col p-4 overflow-hidden relative shadow-lg"
+            className="bg-black/80 w-full md:w-[400px] max-h-[80%] rounded-2xl flex flex-col p-4 overflow-hidden relative shadow-lg"
             style={{
-              paddingBottom: bottomOffset + 16,
-              top: !isMobile ? "50%" : undefined,
-              transform: !isMobile ? "translateY(-50%)" : undefined,
+              paddingBottom: bottomOffset,
             }}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Clip Author */}
             <div className="flex items-center mb-4 gap-3">
@@ -144,7 +122,7 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
               />
               <p
                 className="font-semibold text-white cursor-pointer hover:underline"
-                onClick={() => navigate(`/profile/${clip.author_id}`)}
+                onClick={() => navigate(`/profile/${clip.authorイド}`)}
               >
                 {clip.author}
               </p>
@@ -163,7 +141,6 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
             <div
               ref={scrollRef}
               className="flex-1 space-y-2 overflow-y-auto px-1"
-              style={{ paddingBottom: bottomOffset + 64 }}
             >
               {comments.map((c) => (
                 <motion.div
@@ -193,10 +170,7 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
             </div>
 
             {/* New Comment Input */}
-            <div
-              className={`flex gap-2 ${isMobile ? "absolute left-4 right-4" : "mt-2"}`}
-              style={{ bottom: isMobile ? bottomOffset : undefined }}
-            >
+            <div className="flex gap-2 mt-4">
               <input
                 type="text"
                 value={newComment}

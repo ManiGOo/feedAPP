@@ -1,4 +1,3 @@
-// src/pages/ClipsFeed.jsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ClipItem from "../components/ClipItem";
@@ -18,8 +17,6 @@ export default function ClipsFeed() {
   const [showComments, setShowComments] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
-
-  const videoRefs = useRef({});
 
   // -------------------- Fetch Clips --------------------
   useEffect(() => {
@@ -71,19 +68,9 @@ export default function ClipsFeed() {
 
   useClipsSocket({ clips, setClips, currentIndex, updateClipCounts, handleCommentAdded, handleNewClip });
 
-  // -------------------- Autoplay Current Video --------------------
-  useEffect(() => {
-    clips.forEach((clip, idx) => {
-      const video = videoRefs.current[clip.id];
-      if (!video) return;
-      if (idx === currentIndex) video.play().catch(() => {});
-      else video.pause();
-    });
-  }, [currentIndex, clips]);
-
   // -------------------- Drag Handling --------------------
   const handleDragEnd = (offset, velocity) => {
-    const threshold = 120; // swipe distance to change clip
+    const threshold = 120;
     const momentum = Math.min(Math.floor(Math.abs(velocity) / 700), 3) || 1;
 
     if (offset < -threshold || velocity < -200) {
@@ -98,7 +85,6 @@ export default function ClipsFeed() {
 
   return (
     <div className="relative w-full h-screen bg-black overflow-hidden flex justify-center items-center">
-      
       {/* Upload Button */}
       <div className="fixed top-0 w-full flex justify-center py-2 z-20 bg-black/40 backdrop-blur-md">
         <motion.button
@@ -114,24 +100,12 @@ export default function ClipsFeed() {
       {/* Clips Feed */}
       <div className="absolute w-full h-full flex justify-center items-center overflow-hidden">
         <AnimatePresence mode="wait">
-          {clips.length > 0 && clips.map((clip, idx) => {
+          {clips.map((clip, idx) => {
             if (Math.abs(idx - currentIndex) > 1) return null;
 
-            let baseY = 0;
-            let scale = 1;
-            let opacity = 1;
-
-            if (idx === currentIndex) {
-              baseY = dragOffset;
-            } else if (idx === currentIndex + 1) {
-              baseY = window.innerHeight + dragOffset;
-              scale = 0.95 + Math.min(-dragOffset / 600, 0.05);
-              opacity = 0.3 + Math.min(-dragOffset / 300, 0.7);
-            } else if (idx === currentIndex - 1) {
-              baseY = -window.innerHeight + dragOffset;
-              scale = 0.95 + Math.min(dragOffset / 600, 0.05);
-              opacity = 0.3 + Math.min(dragOffset / 300, 0.7);
-            }
+            const baseY = idx === currentIndex ? dragOffset : (idx > currentIndex ? window.innerHeight + dragOffset : -window.innerHeight + dragOffset);
+            const scale = idx === currentIndex ? 1 : 0.95;
+            const opacity = idx === currentIndex ? 1 : 0.5;
 
             return (
               <motion.div
@@ -149,8 +123,8 @@ export default function ClipsFeed() {
               >
                 <div className="w-full h-full max-w-[500px] max-h-[90vh]">
                   <ClipItem
-                    ref={el => videoRefs.current[clip.id] = el?.videoRef?.current}
                     clip={clip}
+                    isActive={idx === currentIndex}
                     onCommentClick={() => setShowComments(true)}
                     updateClipCounts={updateClipCounts}
                   />
