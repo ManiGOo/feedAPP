@@ -86,27 +86,27 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
     }
   };
 
-  // Bottom offset for safe areas (no dynamic keyboard adjustment needed in centered modal)
+  // Bottom offset for safe areas
   useEffect(() => {
-    setBottomOffset(isMobile ? 34 : 16); // Common safe-area-inset-bottom value for mobiles like iPhone
+    setBottomOffset(isMobile ? 34 : 16);
   }, [isMobile]);
 
   return (
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-0 z-50 flex justify-center items-center bg-black/40 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex justify-center items-end md:items-center bg-black/40 backdrop-blur-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
         >
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, y: "100%" }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: "100%" }}
             transition={{ duration: 0.3 }}
-            className="bg-black/80 w-full md:w-[400px] max-h-[80%] rounded-2xl flex flex-col p-4 overflow-hidden relative shadow-lg"
+            className="bg-black/80 w-full md:w-[400px] max-h-[80%] rounded-t-2xl md:rounded-2xl flex flex-col p-4 overflow-hidden relative shadow-lg"
             style={{
               paddingBottom: bottomOffset,
             }}
@@ -122,7 +122,7 @@ export default function CommentsPanel({ show, clip, onClose, onCommentAdded }) {
               />
               <p
                 className="font-semibold text-white cursor-pointer hover:underline"
-                onClick={() => navigate(`/profile/${clip.authorイド}`)}
+                onClick={() => navigate(`/profile/${clip.author_id}`)}
               >
                 {clip.author}
               </p>

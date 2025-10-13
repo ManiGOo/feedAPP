@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 
-export default function CommentList({ commentsData, onDeleteComment, onUpdateComment }) {
+export default function CommentList({ commentsData, onDeleteComment, onUpdateComment, showPostContent, showDelete }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState(null);
@@ -36,7 +36,7 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
   };
 
   const goToPost = (postId) => {
-    navigate(`/posts/${postId}`);
+    navigate(`/post/${postId}`);
   };
 
   return (
@@ -48,37 +48,19 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
       {commentsData.map((c) => (
         <div
           key={c.id}
-          className="relative group p-3 bg-gray-50 dark:bg-gray-800 rounded-xl flex flex-col gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+          className="relative group p-3 bg-gray-50 dark:bg-gray-800 rounded-xl flex flex-col gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all cursor-pointer"
+          onClick={() => goToPost(c.post_id)}
         >
           {/* Post preview */}
-          {c.postContent && (
+          {showPostContent && c.post_content && (
             <div
               className="p-2 bg-gray-100 dark:bg-gray-700 rounded-md mb-2 transition-all cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600"
-              onClick={() => goToPost(c.postId)}
             >
               <p className="text-gray-600 dark:text-gray-300 text-sm mb-1">
-                {c.postContent.length > 100
-                  ? c.postContent.slice(0, 100) + "..."
-                  : c.postContent}
+                {c.post_content.length > 100
+                  ? c.post_content.slice(0, 100) + "..."
+                  : c.post_content}
               </p>
-              {c.postMedia && (
-                <div className="mt-1">
-                  {c.postMedia.type === "image" && (
-                    <img
-                      src={c.postMedia.url}
-                      alt="post media"
-                      className="w-full max-h-48 object-cover rounded-md"
-                    />
-                  )}
-                  {c.postMedia.type === "video" && (
-                    <video
-                      src={c.postMedia.url}
-                      controls
-                      className="w-full max-h-48 rounded-md"
-                    />
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -92,16 +74,23 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     className="p-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-200"
+                    onClick={(e) => e.stopPropagation()} // Prevent navigation when clicking textarea
                   />
                   <div className="flex gap-2">
                     <button
-                      onClick={() => handleUpdate(c.id)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent navigation
+                        handleUpdate(c.id);
+                      }}
                       className="px-3 py-1 rounded-lg bg-blue-500 text-white hover:bg-blue-600"
                     >
                       Save
                     </button>
                     <button
-                      onClick={() => setEditingId(null)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent navigation
+                        setEditingId(null);
+                      }}
                       className="px-3 py-1 rounded-lg bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600"
                     >
                       Cancel
@@ -114,16 +103,22 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
             </div>
 
             {/* Edit/Delete buttons */}
-            {user?.id === c.user_id && editingId !== c.id && (
+            {showDelete && user?.id === c.user_id && editingId !== c.id && (
               <div className="flex flex-col gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity absolute top-2 right-2">
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleEditClick(c); }}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent navigation
+                    handleEditClick(c);
+                  }}
                   className="hover:text-blue-500"
                 >
                   <Edit3 size={16} />
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent navigation
+                    handleDelete(c.id);
+                  }}
                   className="hover:text-red-500"
                 >
                   <X size={16} />

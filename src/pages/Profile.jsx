@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Edit3, User, X } from "lucide-react";
+import { Edit3, User, X, Search } from "lucide-react";
 
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
@@ -8,7 +8,7 @@ import Loader from "../components/Loader";
 import PostCard from "../components/PostCard";
 import CommentList from "../components/CommentList";
 import EditProfileForm from "../components/EditProfileForm";
-import ButtomNav from "../components/BottomNav";
+import GlobalBottomNav from "../components/GlobalBottomNav.jsx";
 import Navbar from "../components/Navbar";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -28,11 +28,14 @@ export default function Profile() {
   const [following, setFollowing] = useState(false);
   const [message, setMessage] = useState("");
   const [activeTab, setActiveTab] = useState("posts"); // posts | comments
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
 
   const fetchProfile = async () => {
     if (!id) return;
     setLoading(true);
     try {
+      // Fetch profile data
       const endpoint = isOwnProfile ? "/users/me" : `/users/profile/${id}`;
       const res = await api.get(endpoint);
       const userData = res.data.user;
@@ -54,6 +57,24 @@ export default function Profile() {
       }));
 
       setPosts(userPosts);
+
+      // Fetch comments
+      let userComments = res.data.comments || [];
+      if (isOwnProfile) {
+        // Fetch comments for logged-in user using /comments/me
+        const commentsRes = await api.get("/comments/me");
+        userComments = commentsRes.data.map((c) => ({
+          id: c.id,
+          content: c.content,
+          created_at: c.created_at,
+          post_id: c.post_id,
+          user_id: c.user_id,
+          username: c.username || userData.username,
+          avatar_url: c.avatar_url || userData.avatar_url || null,
+          post_content: c.post_content,
+        }));
+      }
+      setComments(userComments);
     } catch (err) {
       console.error("Failed to load profile:", err);
       setMessage("Failed to load profile.");
@@ -62,44 +83,21 @@ export default function Profile() {
     }
   };
 
-  // Fetch only current user's comments safely
-  const fetchMyComments = async () => {
-    if (!currentUser) return; // don't fetch if user not ready
-    setLoading(true);
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
     try {
-      const res = await api.get("/comments/me");
-      setComments(res.data || []);
+      const res = await api.get(`/users/search?q=${encodeURIComponent(searchQuery)}`);
+      setSearchResults(res.data);
     } catch (err) {
-      if (err.response?.status === 403) {
-        console.warn("Access forbidden: cannot fetch comments");
-        setMessage("You are not allowed to view comments.");
-      } else {
-        console.error("Failed to fetch comments:", err);
-        setMessage("Failed to load comments.");
-      }
-      setComments([]); // prevent old data from showing
-    } finally {
-      setLoading(false);
+      console.error("Search failed:", err);
+      setMessage("Failed to search users.");
     }
   };
-
-  // --- useEffect for comments tab ---
-  useEffect(() => {
-    // Only fetch if "comments" tab active and user is logged in
-    if (activeTab === "comments" && currentUser) {
-      fetchMyComments();
-    }
-  }, [activeTab, currentUser]);
-
-  useEffect(() => {
-    fetchProfile();
-  }, [id]);
-
-  useEffect(() => {
-    if (activeTab === "comments") {
-      fetchMyComments();
-    }
-  }, [activeTab]);
 
   const handleUpdate = async (formData) => {
     try {
@@ -159,6 +157,10 @@ export default function Profile() {
     }
   };
 
+  useEffect(() => {
+    fetchProfile();
+  }, [id]);
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -178,6 +180,67 @@ export default function Profile() {
   return (
     <div className="pt-20 max-w-2xl mx-auto px-4 pb-20 relative">
       <Navbar />
+
+      {/* Search Bar */}
+      <div className="mb-6">
+        <form onSubmit={handleSearch} className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search users..."
+              className="w-full p-2 pl-10 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          </div>
+          <button
+            type="submit"
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
+          >
+            Search
+          </button>
+        </form>
+
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <div className="mt-4 bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+            <h3 className="text-lg font-semibold mb-2">Search Results</h3>
+            <div className="space-y-2">
+              {searchResults.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer"
+                  onClick={() => {
+                    navigate(`/profile/${user.id}`);
+                    setSearchQuery("");
+                    setSearchResults([]);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    {user.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={user.username}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-8 h-8 text-gray-400" />
+                    )}
+                    <div>
+                      <p className="font-medium">{user.username}</p>
+                      <p className="text-sm text-gray-500">{user.bio || "No bio"}</p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {user.followers_count} followers
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Profile Card */}
       <div
@@ -292,6 +355,8 @@ export default function Profile() {
             commentsData={comments}
             onDeleteComment={handleDeleteComment}
             onUpdateComment={handleUpdateComment}
+            showDelete={isOwnProfile}
+            showPostContent={true}
           />
         )}
       </div>
@@ -328,7 +393,7 @@ export default function Profile() {
         )}
       </AnimatePresence>
 
-      <ButtomNav />
+      <GlobalBottomNav />
     </div>
   );
 }

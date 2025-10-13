@@ -13,7 +13,7 @@ import PostPage from "./pages/PostPage";
 import Follow from "./pages/Follow";
 import MessagesPage from "./pages/MessagesPage";
 import { useAuth } from "./context/AuthContext";
-import ClipsFeed from "./pages/ClipsFeed"; // <-- import the new page
+import ClipsFeed from "./pages/ClipsFeed";
 import EditPost from "./pages/EditPost";
 
 function App() {
@@ -28,9 +28,22 @@ function App() {
     );
   }
 
+  // Apply full-screen layout for MessagesPage and ClipsFeed
+  const isFullScreenPage =
+    location.pathname.startsWith("/messages") ||
+    location.pathname.startsWith("/clips");
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors flex flex-col">
-      <main className="flex-1 container mx-auto px-4 py-6">
+    <div
+      className={`flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors ${
+        isFullScreenPage ? "h-screen overflow-hidden" : "min-h-screen"
+      }`}
+    >
+      <main
+        className={`${
+          isFullScreenPage ? "h-full" : "flex-1 container mx-auto px-4 py-6"
+        }`}
+      >
         <Routes>
           {/* Protected routes */}
           <Route

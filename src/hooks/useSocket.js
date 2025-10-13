@@ -1,57 +1,80 @@
-// useSocket.js
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
+import io from "socket.io-client";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:5000";
 
-export default function useSocket(onMessageDeleted) {
+export default function useSocket(onMessageDeleted, onGroupCreated) {
   const [socket, setSocket] = useState(null);
+  const [connectionError, setConnectionError] = useState(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("accessToken"); // Use same key as api.js
+    const token = localStorage.getItem("accessToken");
     if (!token) {
-      console.error("❌ No access token found in localStorage");
+      console.error("useSocket: ❌ No access token available, cannot initialize socket");
+      setConnectionError("No access token available");
       return;
     }
 
-    const s = io(SOCKET_URL, {
+    console.log("useSocket: Initializing socket connection to", SOCKET_URL);
+    const newSocket = io(SOCKET_URL, {
       auth: { token },
-      transports: ["websocket"],
+      autoConnect: true,
+      reconnection: true,
       reconnectionAttempts: 5,
-      timeout: 5000,
+      reconnectionDelay: 1000,
     });
 
-    s.on("connect", () => console.log("✅ Socket connected:", s.id));
-    s.on("connect_error", (err) => console.error("❌ Socket connect_error:", err.message));
-    s.on("disconnect", (reason) => console.warn("⚡ Socket disconnected:", reason));
-    s.onAny((event, payload) => {
-      console.log("🔹 Socket event received:", event, payload);
+    newSocket.on("connect", () => {
+      console.log("useSocket: ✅ Socket connected, id:", newSocket.id);
+      setConnectionError(null);
     });
 
-    s.on("messageDeleted", ({ messageId }) => {
-      console.log("🗑️ Message deleted:", messageId);
+    newSocket.on("connect_error", (err) => {
+      console.error("useSocket: ❌ Socket connect_error:", err.message);
+      setConnectionError(err.message);
+    });
+
+    newSocket.on("disconnect", (reason) => {
+      console.warn("useSocket: ⚡ Socket disconnected:", reason);
+      if (reason === "io server disconnect") {
+        setConnectionError("Server closed connection");
+      }
+    });
+
+    newSocket.onAny((event, payload) => {
+      console.log("useSocket: 🔹 Socket event received:", event, payload);
+    });
+
+    newSocket.on("messageDeleted", ({ messageId }) => {
+      console.log("useSocket: 🗑️ Message deleted:", messageId);
       if (typeof onMessageDeleted === "function") onMessageDeleted(messageId);
     });
 
-    // Add errorMessage listener for global errors
-    s.on("errorMessage", ({ error }) => {
-      console.error("❌ Socket error:", error);
+    newSocket.on("groupCreated", (group) => {
+      console.log("useSocket: 🏠 Group created:", group);
+      if (typeof onGroupCreated === "function") onGroupCreated(group);
     });
 
-    const originalEmit = s.emit;
-    s.emit = function (event, ...args) {
-      console.log("🔸 Socket emit:", event, ...args);
-      originalEmit.apply(s, [event, ...args]);
-    };
+    newSocket.on("errorMessage", ({ error }) => {
+      console.error("useSocket: ❌ Socket error:", error);
+      setConnectionError(error);
+    });
 
-    setSocket(s);
+    setSocket(newSocket);
 
     return () => {
-      console.log("🛑 Disconnecting socket");
-      s.disconnect();
+      console.log("useSocket: 🛑 Cleaning up socket listeners");
+      newSocket.off("connect");
+      newSocket.off("connect_error");
+      newSocket.off("disconnect");
+      newSocket.off("messageDeleted");
+      newSocket.off("errorMessage");
+      newSocket.off("groupCreated");
+      newSocket.offAny();
+      newSocket.disconnect();
       setSocket(null);
     };
-  }, [onMessageDeleted]);
+  }, [onMessageDeleted, onGroupCreated]);
 
-  return socket;
+  return { socket, connectionError };
 }

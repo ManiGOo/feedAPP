@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FaHeart, FaComment, FaPlay } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -14,8 +14,9 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
   const [commentsCount, setCommentsCount] = useState(clip.comments_count || 0);
   const [showHeart, setShowHeart] = useState(false);
   const [showPlayButton, setShowPlayButton] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
 
-  // Sync local counts with prop changes (e.g., external updates via sockets or comments)
+  // Sync local counts with prop changes
   useEffect(() => {
     setLikes(clip.like_count || 0);
     setLikedByMe(clip.liked_by_me || false);
@@ -32,7 +33,7 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
         videoRef.current.muted = true;
         videoRef.current.play().catch(console.error);
       });
-      setShowPlayButton(false); // Ensure no play button on switch/autoplay
+      setShowPlayButton(false);
     } else {
       videoRef.current.pause();
       videoRef.current.muted = true;
@@ -43,7 +44,7 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
     if (!videoRef.current) return;
 
     if (videoRef.current.paused) {
-      videoRef.current.muted = false; // Try unmute on user gesture
+      videoRef.current.muted = false;
       videoRef.current.play().catch(() => {
         videoRef.current.muted = true;
         videoRef.current.play().catch(console.error);
@@ -56,19 +57,25 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
   }, []);
 
   const toggleLike = async () => {
-    if (!clip) return;
+    if (!clip || isLiking) return;
+    setIsLiking(true);
     try {
       const newLikes = likedByMe ? Math.max(likes - 1, 0) : likes + 1;
       const newLikedState = !likedByMe;
 
-      if (likedByMe) await api.unlikeClip(clip.id);
-      else await api.likeClip(clip.id);
+      if (likedByMe) {
+        await api.unlikeClip(clip.id);
+      } else {
+        await api.likeClip(clip.id);
+      }
 
       setLikes(newLikes);
       setLikedByMe(newLikedState);
       updateClipCounts?.(clip.id, newLikes, commentsCount);
     } catch (err) {
       console.error("Failed to toggle like:", err);
+    } finally {
+      setIsLiking(false);
     }
   };
 
@@ -77,8 +84,10 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
     const now = Date.now();
     if (now - lastTap < 300) {
       toggleLike();
-      setShowHeart(true);
-      setTimeout(() => setShowHeart(false), 800);
+      if (!likedByMe) {
+        setShowHeart(true);
+        setTimeout(() => setShowHeart(false), 800);
+      }
     }
     lastTap = now;
   };
@@ -96,58 +105,100 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
             playsInline
             onClick={togglePlayPause}
             onDoubleClick={handleDoubleTap}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: loaded ? 1 : 0, scale: loaded ? 1 : 0.95 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            onLoadedMetadata={() => setLoaded(true)}
+            initial={{ opacity: 0, y: "100%" }}
+            animate={{ opacity: loaded ? 1 : 0, y: loaded ? 0 : "100%" }}
+            exit={{ opacity: 0, y: "100%" }}
             transition={{ duration: 0.3, ease: "easeInOut" }}
+            onLoadedMetadata={() => setLoaded(true)}
           />
         </AnimatePresence>
 
-        {showHeart && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1.5, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="absolute text-white text-6xl z-30 pointer-events-none"
-          >
-            <FaHeart className="text-red-500 drop-shadow-lg" />
-          </motion.div>
-        )}
+        <AnimatePresence>
+          {showHeart && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1.5, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="absolute text-white text-6xl z-30 pointer-events-none"
+            >
+              <FaHeart className="text-red-500 drop-shadow-lg" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showPlayButton && (
+            <motion.button
+              onClick={togglePlayPause}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              className="absolute inset-0 m-auto w-16 h-16 flex justify-center items-center text-white bg-black/60 rounded-full z-20"
+            >
+              <FaPlay />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
-      {showPlayButton && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeInOut", delay: 0.1 }}
+        className="absolute bottom-[calc(4rem+env(safe-area-inset-bottom))] right-4 flex flex-col items-center gap-6 z-20"
+      >
         <motion.button
-          onClick={togglePlayPause}
-          className="absolute inset-0 m-auto w-16 h-16 flex justify-center items-center text-white bg-black/60 rounded-full z-20"
+          onClick={toggleLike}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="flex flex-col items-center"
         >
-          <FaPlay />
+          <motion.div
+            animate={{ color: likedByMe ? "#ef4444" : "#ffffff" }}
+            transition={{ duration: 0.3 }}
+          >
+            <FaHeart className="text-3xl" />
+          </motion.div>
+          <span className="text-sm text-white">{likes}</span>
         </motion.button>
-      )}
-
-      <div className="absolute bottom-[20%] right-4 flex flex-col items-center gap-6 z-20">
-        <button onClick={toggleLike} className="flex flex-col items-center text-white">
-          <FaHeart className={`text-3xl ${likedByMe ? "text-red-500" : "text-white"}`} />
-          <span className="text-sm">{likes}</span>
-        </button>
-        <button onClick={onCommentClick} className="flex flex-col items-center text-white">
+        <motion.button
+          onClick={onCommentClick}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="flex flex-col items-center text-white"
+        >
           <FaComment className="text-3xl" />
           <span className="text-sm">{commentsCount}</span>
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      <div className="absolute bottom-16 left-4 text-white z-20 flex flex-col gap-2 max-w-[90vw]">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeInOut", delay: 0.2 }}
+        className="absolute bottom-[calc(8rem+env(safe-area-inset-bottom))] left-4 text-white z-20 flex flex-col gap-2 max-w-[90vw]"
+      >
         <p className="font-bold text-sm truncate">{clip.title}</p>
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate(`/profile/${clip.author_id}`)}>
-          <img
+        <motion.div
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => navigate(`/profile/${clip.author_id}`)}
+          whileHover={{ scale: 1.05 }}
+        >
+          <motion.img
             src={clip.avatar_url || "/default-avatar.png"}
             alt={clip.author}
             className="w-8 h-8 rounded-full object-cover"
+            whileHover={{ scale: 1.1 }}
           />
-          <span className="font-semibold text-sm truncate max-w-[60vw]">{clip.author}</span>
-        </div>
-      </div>
+          <span className="font-semibold text-sm truncate max-w-[60vw] hover:underline">
+            {clip.author}
+          </span>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }

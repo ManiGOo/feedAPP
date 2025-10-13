@@ -1,4 +1,3 @@
-// src/components/PostCard.jsx
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, MessageCircle, Repeat2, MoreVertical, User } from "lucide-react";
@@ -10,8 +9,9 @@ export default function PostCard({
   id,
   author,
   author_id,
-  avatar_url,
+  author_avatar, // Changed from avatar_url to match backend
   content,
+  created_at,
   like_count = 0,
   liked_by_me = false,
   image,
@@ -62,6 +62,15 @@ export default function PostCard({
     setShowMenu(false);
   };
 
+  // Format the created_at date
+  const formattedDate = created_at
+    ? new Date(created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Unknown date";
+
   return (
     <div className="bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-2xl p-4 mb-4 hover:bg-gray-50 dark:hover:bg-neutral-900 transition-colors">
       {/* Header */}
@@ -75,9 +84,9 @@ export default function PostCard({
           }
         >
           <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center font-bold text-white">
-            {avatar_url ? (
+            {author_avatar ? (
               <img
-                src={avatar_url}
+                src={author_avatar}
                 alt="avatar"
                 className="w-full h-full object-cover"
               />
@@ -90,42 +99,49 @@ export default function PostCard({
           </p>
         </div>
 
-        {showDelete && onDelete && (
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu((prev) => !prev)}
-              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition"
-            >
-              <MoreVertical size={18} />
-            </button>
-            <AnimatePresence>
-              {showMenu && (
-                <motion.div
-                  className="absolute right-0 mt-2 w-28 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50"
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                >
-                  <button
-                    onClick={() => {
-                      setShowConfirm(true);
-                      setShowMenu(false);
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500 rounded-t-xl"
+        <div className="flex items-center gap-2">
+          {/* Posted Date */}
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {formattedDate}
+          </p>
+
+          {showDelete && onDelete && (
+            <div className="relative">
+              <button
+                onClick={() => setShowMenu((prev) => !prev)}
+                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+              >
+                <MoreVertical size={18} />
+              </button>
+              <AnimatePresence>
+                {showMenu && (
+                  <motion.div
+                    className="absolute right-0 mt-2 w-28 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
                   >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => navigate(`/post/edit/${id}`)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-xl"
-                  >
-                    Edit
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+                    <button
+                      onClick={() => {
+                        setShowConfirm(true);
+                        setShowMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-red-500 rounded-t-xl"
+                    >
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => navigate(`/post/edit/${id}`)}
+                      className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-xl"
+                    >
+                      Edit
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Content */}
@@ -165,8 +181,9 @@ export default function PostCard({
         <button
           onClick={handleLike}
           disabled={!user}
-          className={`flex items-center gap-1 text-sm transition ${liked ? "text-red-500" : "text-gray-500 dark:text-gray-400"
-            } ${!user ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}
+          className={`flex items-center gap-1 text-sm transition ${
+            liked ? "text-red-500" : "text-gray-500 dark:text-gray-400"
+          } ${!user ? "opacity-50 cursor-not-allowed" : "hover:opacity-80"}`}
         >
           <motion.div
             animate={heartAnim ? { scale: [1, 1.6, 1] } : { scale: 1 }}

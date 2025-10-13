@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ClipItem from "../components/ClipItem";
 import CommentsPanel from "../components/CommentsPanel";
@@ -7,7 +7,7 @@ import UploadClipOverlay from "../components/UploadClipOverlay";
 import api from "../utils/api";
 import useClipsSocket from "../hooks/useClipsSocket";
 import { useAuth } from "../context/AuthContext.jsx";
-import BottomNav from "../components/BottomNav";
+import GlobalBottomNav from "../components/GlobalBottomNav.jsx";
 
 export default function ClipsFeed() {
   const { user: currentUser } = useAuth();
@@ -18,7 +18,7 @@ export default function ClipsFeed() {
   const [showUpload, setShowUpload] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // -------------------- Fetch Clips --------------------
+  // Fetch Clips
   useEffect(() => {
     const fetchClips = async () => {
       try {
@@ -33,10 +33,17 @@ export default function ClipsFeed() {
     fetchClips();
   }, []);
 
-  // -------------------- Update Clip Counts --------------------
-  const updateClipCounts = useCallback((clipId, likeCount, commentsCount) => {
-    setClips(prev => prev.map(c => c.id === clipId ? { ...c, like_count: likeCount, comments_count: commentsCount } : c));
-  }, []);
+  // Update Clip Counts
+  const updateClipCounts = useCallback(
+    (clipId, likeCount, commentsCount) => {
+      setClips((prev) =>
+        prev.map((c) =>
+          c.id === clipId ? { ...c, like_count: likeCount, comments_count: commentsCount } : c
+        )
+      );
+    },
+    []
+  );
 
   const handleCommentAdded = useCallback(() => {
     const clip = clips[currentIndex];
@@ -44,39 +51,42 @@ export default function ClipsFeed() {
     updateClipCounts(clip.id, clip.like_count, (clip.comments_count || 0) + 1);
   }, [clips, currentIndex, updateClipCounts]);
 
-  const handleNewClip = useCallback(async (newClip) => {
-    try {
-      const profile = await api.getUserProfile(newClip.user_id || newClip.userId);
-      const enrichedClip = {
-        ...newClip,
-        author: profile.username,
-        avatar_url: profile.avatar_url,
-        like_count: 0,
-        comments_count: 0,
-        liked_by_me: false,
-        is_followed_author: false,
-      };
-      setClips(prev => [enrichedClip, ...prev]);
-      setCurrentIndex(0);
-    } catch (err) {
-      console.error("Failed to enrich new clip:", err);
-      setClips(prev => [newClip, ...prev]);
-      setCurrentIndex(0);
-    }
-    setShowUpload(false);
-  }, []);
+  const handleNewClip = useCallback(
+    async (newClip) => {
+      try {
+        const profile = await api.getUserProfile(newClip.user_id || newClip.userId);
+        const enrichedClip = {
+          ...newClip,
+          author: profile.username,
+          avatar_url: profile.avatar_url,
+          like_count: 0,
+          comments_count: 0,
+          liked_by_me: false,
+          is_followed_author: false,
+        };
+        setClips((prev) => [enrichedClip, ...prev]);
+        setCurrentIndex(0);
+      } catch (err) {
+        console.error("Failed to enrich new clip:", err);
+        setClips((prev) => [newClip, ...prev]);
+        setCurrentIndex(0);
+      }
+      setShowUpload(false);
+    },
+    []
+  );
 
   useClipsSocket({ clips, setClips, currentIndex, updateClipCounts, handleCommentAdded, handleNewClip });
 
-  // -------------------- Drag Handling --------------------
+  // Drag Handling
   const handleDragEnd = (offset, velocity) => {
     const threshold = 120;
     const momentum = Math.min(Math.floor(Math.abs(velocity) / 700), 3) || 1;
 
     if (offset < -threshold || velocity < -200) {
-      setCurrentIndex(prev => Math.min(prev + momentum, clips.length - 1));
+      setCurrentIndex((prev) => Math.min(prev + momentum, clips.length - 1));
     } else if (offset > threshold || velocity > 200) {
-      setCurrentIndex(prev => Math.max(prev - momentum, 0));
+      setCurrentIndex((prev) => Math.max(prev - momentum, 0));
     }
     setDragOffset(0);
   };
@@ -84,47 +94,66 @@ export default function ClipsFeed() {
   if (loading) return <Loader size={50} color="#3b82f6" />;
 
   return (
-    <div className="relative w-full h-screen bg-black overflow-hidden flex justify-center items-center">
+    <div
+      className="relative w-full h-screen bg-black overflow-hidden flex justify-center items-center"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       {/* Upload Button */}
-      <div className="fixed top-0 w-full flex justify-center py-2 z-20 bg-black/40 backdrop-blur-md">
-        <motion.button
-          onClick={() => setShowUpload(true)}
-          className="bg-blue-500 text-white px-5 py-2 rounded-full shadow-lg"
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-        >
-          Post Video
-        </motion.button>
-      </div>
+      <AnimatePresence>
+        {!showComments && !showUpload && (
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            transition={{ duration: 0.3, ease: "easeInOut" }}
+            className="fixed top-4 w-full flex justify-center z-20 bg-black/40 backdrop-blur-md py-3"
+          >
+            <motion.button
+              onClick={() => setShowUpload(true)}
+              className="bg-blue-500 text-white px-5 py-2 rounded-full shadow-lg"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Post Video
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Clips Feed */}
       <div className="absolute w-full h-full flex justify-center items-center overflow-hidden">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           {clips.map((clip, idx) => {
             if (Math.abs(idx - currentIndex) > 1) return null;
 
-            const baseY = idx === currentIndex ? dragOffset : (idx > currentIndex ? window.innerHeight + dragOffset : -window.innerHeight + dragOffset);
-            const scale = idx === currentIndex ? 1 : 0.95;
-            const opacity = idx === currentIndex ? 1 : 0.5;
+            const isCurrent = idx === currentIndex;
+            const isNext = idx > currentIndex;
+            const baseY = isCurrent
+              ? dragOffset
+              : isNext
+              ? window.innerHeight + dragOffset
+              : -window.innerHeight + dragOffset;
+            const zIndex = isCurrent ? 10 : 5;
 
             return (
               <motion.div
                 key={clip.id}
-                drag={idx === currentIndex ? "y" : false}
+                drag={isCurrent ? "y" : false}
                 dragConstraints={{ top: 0, bottom: 0 }}
                 dragElastic={0.5}
                 onDrag={(e, info) => setDragOffset(info.offset.y)}
                 onDragEnd={(e, info) => handleDragEnd(info.offset.y, info.velocity.y)}
-                initial={{ y: baseY, scale, opacity }}
-                animate={{ y: baseY, scale, opacity }}
-                exit={{ opacity: 0 }}
-                transition={{ type: "spring", stiffness: 200, damping: 25 }}
-                className="absolute w-full h-full flex justify-center items-center z-10"
+                initial={{ y: isNext ? "100%" : "-100%", opacity: 0 }}
+                animate={{ y: baseY, opacity: 1 }}
+                exit={{ y: isNext ? "-100%" : "100%", opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="absolute w-full h-full flex justify-center items-center"
+                style={{ zIndex }}
               >
                 <div className="w-full h-full max-w-[500px] max-h-[90vh]">
                   <ClipItem
                     clip={clip}
-                    isActive={idx === currentIndex}
+                    isActive={isCurrent}
                     onCommentClick={() => setShowComments(true)}
                     updateClipCounts={updateClipCounts}
                   />
@@ -155,8 +184,8 @@ export default function ClipsFeed() {
 
       {/* Bottom Navigation */}
       {!showComments && (
-        <div className="fixed bottom-0 left-0 w-full h-[60px] z-20">
-          <BottomNav />
+        <div className="fixed bottom-0 left-0 w-full z-20">
+          <GlobalBottomNav />
         </div>
       )}
     </div>

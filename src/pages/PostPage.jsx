@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import PostCard from "../components/PostCard";
-import Loader from "../components/Loader"; // ✅ reuse loader
+import Loader from "../components/Loader";
 
 function PostPage() {
   const { id } = useParams();
@@ -16,6 +16,7 @@ function PostPage() {
   const [newComment, setNewComment] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
   const inputRef = useRef(null);
   const commentsEndRef = useRef(null);
@@ -26,8 +27,10 @@ function PostPage() {
         const res = await api.get(`/posts/${id}`);
         setPost(res.data);
         setComments(res.data.comments || []);
+        setError(null);
       } catch (err) {
         console.error("Failed to fetch post:", err.response?.data || err.message);
+        setError(err.response?.data?.error || "Failed to load post.");
       } finally {
         setLoading(false);
       }
@@ -49,12 +52,13 @@ function PostPage() {
       setNewComment("");
       if (inputRef.current) inputRef.current.style.height = "auto";
 
-      // ✅ Scroll to the bottom of comments
+      // Scroll to the bottom of comments
       setTimeout(() => {
         commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
     } catch (err) {
       console.error("Failed to add comment:", err.response?.data || err.message);
+      setError("Failed to add comment.");
     } finally {
       setSubmitting(false);
     }
@@ -62,18 +66,31 @@ function PostPage() {
 
   if (loading) return <Loader />;
 
-  if (!post) {
+  if (error || !post) {
     return (
-      <p className="text-center text-red-500 mt-6">
-        Failed to load post.
-      </p>
+      <div className="max-w-2xl mx-auto p-4 space-y-6">
+        <div className="pt-5">
+          <div
+            onClick={() => navigate(-1)}
+            className="cursor-pointer bg-white dark:bg-gray-900 shadow-sm rounded-xl 
+              p-3 flex items-center gap-2 text-gray-700 dark:text-gray-200 font-medium
+              hover:text-blue-600 dark:hover:text-blue-400 hover:shadow-md active:scale-95 
+              transition-all duration-200"
+          >
+            <ArrowLeft className="w-5 h-5" strokeWidth={2} />
+            <span>Back</span>
+          </div>
+        </div>
+        <p className="text-center text-red-500 mt-6">
+          {error || "Post not found."}
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
-
-      {/* 🔙 Back Button */}
+      {/* Back Button */}
       <div className="pt-5">
         <div
           onClick={() => navigate(-1)}
@@ -87,12 +104,14 @@ function PostPage() {
         </div>
       </div>
 
-      {/* 📌 Post */}
+      {/* Post */}
       <PostCard
         id={post.id}
         author={post.author}
-        avatar_url={post.avatar_url}
+        author_id={post.author_id} // Added to support profile navigation
+        author_avatar={post.author_avatar} // Changed from avatar_url to match PostCard
         content={post.content}
+        created_at={post.created_at}
         like_count={post.like_count}
         liked_by_me={post.liked_by_me}
         image={post.media_type === "image" ? post.media_url : null}
@@ -101,7 +120,7 @@ function PostPage() {
         commentsNumber={comments.length}
       />
 
-      {/* 💬 Comments Section */}
+      {/* Comments Section */}
       <div className="bg-white dark:bg-gray-900 shadow-md rounded-xl p-4">
         <h2 className="text-lg font-semibold mb-4">Comments</h2>
 
@@ -133,7 +152,7 @@ function PostPage() {
           </div>
         )}
 
-        {/* ➕ Add Comment */}
+        {/* Add Comment */}
         {user && (
           <div className="flex gap-2 mt-4 items-start">
             <textarea

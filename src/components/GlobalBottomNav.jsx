@@ -3,34 +3,16 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { Home, LogIn, LogOut, User, MessageCircle, Film } from "lucide-react";
 
-export default function BottomNav() {
+export default function GlobalBottomNav() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const path = location.pathname;
 
   const [visible, setVisible] = useState(true);
   const [lastScroll, setLastScroll] = useState(0);
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
-  // Update isMobile on window resize
+  // Detect scroll direction
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth <= 768;
-      setIsMobile(mobile);
-      console.log("BottomNav: isMobile:", mobile, "window.innerWidth:", window.innerWidth);
-    };
-
-    window.addEventListener("resize", handleResize);
-    handleResize(); // Initial check
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // Detect scroll direction (only on mobile)
-  useEffect(() => {
-    if (!isMobile) {
-      setVisible(true); // Always visible on desktop
-      return;
-    }
     const handleScroll = () => {
       const currentScroll = window.scrollY;
       if (currentScroll > lastScroll && currentScroll > 60) {
@@ -43,7 +25,7 @@ export default function BottomNav() {
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScroll, isMobile]);
+  }, [lastScroll]);
 
   const navItem = (to, Icon, label, notification = false) => (
     <Link
@@ -62,14 +44,12 @@ export default function BottomNav() {
 
   return (
     <nav
-      className={`w-full transform transition-transform duration-300 ${
-        isMobile
-          ? `fixed bottom-0 left-0 ${visible ? "translate-y-0" : "translate-y-full"}`
-          : "relative"
+      className={`fixed bottom-0 left-0 w-full z-50 transform transition-transform duration-300 ${
+        visible ? "translate-y-0" : "translate-y-full"
       }`}
-      style={{ paddingBottom: isMobile ? "env(safe-area-inset-bottom)" : "0" }}
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="flex justify-around items-center w-full h-14 bg-gray-900 border-t border-gray-800 rounded-t-2xl shadow-lg px-2 sm:px-4">
+      <div className="flex justify-around items-center max-w-md mx-auto h-14 bg-gray-900 border-t border-gray-800 rounded-t-2xl shadow-lg px-2 sm:px-4">
         {navItem("/", Home, "Home")}
         {user && navItem("/messages", MessageCircle, "Messages", true)}
         {navItem("/clips", Film, "Clips")}

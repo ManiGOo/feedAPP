@@ -1,40 +1,41 @@
 import React, { useState } from "react";
+import { Send } from "lucide-react";
+import { motion } from "framer-motion";
 
-export default function MessageInput({ sendMessage }) {
+function MessageInput({ sendMessage }) {
   const [content, setContent] = useState("");
 
-  const handleSend = () => {
+  const handleSubmit = (e) => {
+    e.preventDefault();
     if (!content.trim()) return;
-    sendMessage(content.trim());
+    sendMessage(content);
     setContent("");
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
   return (
-    <div
-      className="flex items-center gap-2 p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900"
-      style={{ marginBottom: "5%" }} // extra spacing below input
+    <motion.form
+      initial={{ y: 50, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      onSubmit={handleSubmit}
+      className="flex items-center p-3 border-t dark:border-gray-700 bg-white dark:bg-gray-950 sticky bottom-0 z-10"
     >
       <input
         type="text"
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Message..."
-        className="flex-1 px-4 py-2 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+        placeholder="Type a message..."
+        className="flex-1 p-2 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       <button
-        onClick={handleSend}
-        className="flex-shrink-0 px-4 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-400 transition-colors"
+        type="submit"
+        className="ml-2 p-2 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600"
+        disabled={!content.trim()}
       >
-        Send
+        <Send size={20} />
       </button>
-    </div>
+    </motion.form>
   );
 }
+
+export default React.memo(MessageInput);
