@@ -1,15 +1,18 @@
 // src/hooks/useClipsSocket.js
 import { useEffect, useCallback } from "react";
 import api, { socket } from "../utils/api";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function useClipsSocket({
   clips,
   setClips,
   currentIndex,
-  updateClipCounts,
+  updateClip,
   handleCommentAdded,
   handleNewClip,
 }) {
+  const { user } = useAuth();
+
   // -------------------- New Clip --------------------
   const onNewClip = useCallback(
     async (newClip) => {
@@ -37,14 +40,14 @@ export default function useClipsSocket({
 
   // -------------------- Clip Liked --------------------
   const onClipLiked = useCallback(
-    ({ clipId, like_count }) => {
-      updateClipCounts?.(
-        clipId,
-        like_count,
-        clips.find((c) => c.id === clipId)?.comments_count || 0
-      );
+    ({ clipId, userId, like_count, liked }) => {
+      const updates = { like_count };
+      if (userId === user?.id) {
+        updates.liked_by_me = liked;
+      }
+      updateClip?.(clipId, updates);
     },
-    [clips, updateClipCounts]
+    [updateClip, user]
   );
 
   // -------------------- New Clip Comment --------------------

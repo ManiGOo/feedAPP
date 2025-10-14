@@ -1,7 +1,7 @@
+// src/components/Profile.jsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Edit3, User, X, Search } from "lucide-react";
-
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import Loader from "../components/Loader";
@@ -35,7 +35,6 @@ export default function Profile() {
     if (!id) return;
     setLoading(true);
     try {
-      // Fetch profile data
       const endpoint = isOwnProfile ? "/users/me" : `/users/profile/${id}`;
       const res = await api.get(endpoint);
       const userData = res.data.user;
@@ -45,7 +44,7 @@ export default function Profile() {
       setProfile(userData);
       if (!isOwnProfile) setFollowing(userData.isFollowedByMe || false);
 
-      // Map posts to PostCard structure
+      // Map posts
       const userPosts = (res.data.posts || []).map((p) => ({
         ...p,
         author: p.author || userData.username,
@@ -55,25 +54,19 @@ export default function Profile() {
         video: p.media_type === "video" ? p.media_url : null,
         comments: p.comments || [],
       }));
-
       setPosts(userPosts);
 
-      // Fetch comments
-      let userComments = res.data.comments || [];
-      if (isOwnProfile) {
-        // Fetch comments for logged-in user using /comments/me
-        const commentsRes = await api.get("/comments/me");
-        userComments = commentsRes.data.map((c) => ({
-          id: c.id,
-          content: c.content,
-          created_at: c.created_at,
-          post_id: c.post_id,
-          user_id: c.user_id,
-          username: c.username || userData.username,
-          avatar_url: c.avatar_url || userData.avatar_url || null,
-          post_content: c.post_content,
-        }));
-      }
+      // Map post comments
+      const userComments = (res.data.comments || []).map((c) => ({
+        id: c.id,
+        content: c.content,
+        created_at: c.created_at,
+        post_id: c.post_id,
+        user_id: c.user_id,
+        username: c.username || userData.username,
+        avatar_url: c.avatar_url || userData.avatar_url || null,
+        post_content: c.post_content,
+      }));
       setComments(userComments);
     } catch (err) {
       console.error("Failed to load profile:", err);
@@ -91,8 +84,8 @@ export default function Profile() {
     }
 
     try {
-      const res = await api.get(`/users/search?q=${encodeURIComponent(searchQuery)}`);
-      setSearchResults(res.data);
+      const res = await api.searchUsers(searchQuery);
+      setSearchResults(res);
     } catch (err) {
       console.error("Search failed:", err);
       setMessage("Failed to search users.");
@@ -108,11 +101,8 @@ export default function Profile() {
       if (formData.avatarFile) uploadData.append("avatar", formData.avatarFile);
       else if (formData.removeAvatar) uploadData.append("removeAvatar", "true");
 
-      const res = await api.put("/users/me", uploadData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      setProfile(res.data.user);
+      const res = await api.updateProfile(uploadData);
+      setProfile(res.user);
       setEditing(false);
       setMessage("Profile updated!");
       setTimeout(() => setMessage(""), 2000);
@@ -202,7 +192,6 @@ export default function Profile() {
           </button>
         </form>
 
-        {/* Search Results */}
         {searchResults.length > 0 && (
           <div className="mt-4 bg-white dark:bg-gray-900 rounded-lg shadow p-4">
             <h3 className="text-lg font-semibold mb-2">Search Results</h3>
@@ -244,8 +233,9 @@ export default function Profile() {
 
       {/* Profile Card */}
       <div
-        className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center transition-all ${editing ? "blur-sm pointer-events-none select-none" : ""
-          }`}
+        className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center transition-all ${
+          editing ? "blur-sm pointer-events-none select-none" : ""
+        }`}
       >
         <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500 flex items-center justify-center">
           {profile.avatar_url ? (
@@ -292,10 +282,11 @@ export default function Profile() {
             <div className="flex justify-center mt-4">
               <button
                 onClick={toggleFollow}
-                className={`px-4 py-2 rounded-lg font-medium ${following
+                className={`px-4 py-2 rounded-lg font-medium ${
+                  following
                     ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
                     : "bg-blue-500 text-white hover:bg-blue-600"
-                  }`}
+                }`}
               >
                 {following ? "Following" : "Follow"}
               </button>
@@ -309,22 +300,20 @@ export default function Profile() {
       {/* Tabs */}
       <div className="mt-6 flex border-b border-gray-200 dark:border-gray-700">
         <button
-          className={`flex-1 py-2 text-center font-medium ${activeTab === "posts"
-              ? "border-b-2 border-blue-500 text-blue-600"
-              : "text-gray-500"
-            }`}
+          className={`flex-1 py-2 text-center font-medium ${
+            activeTab === "posts" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
+          }`}
           onClick={() => setActiveTab("posts")}
         >
           Posts
         </button>
         <button
-          className={`flex-1 py-2 text-center font-medium ${activeTab === "comments"
-              ? "border-b-2 border-blue-500 text-blue-600"
-              : "text-gray-500"
-            }`}
+          className={`flex-1 py-2 text-center font-medium ${
+            activeTab === "comments" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
+          }`}
           onClick={() => setActiveTab("comments")}
         >
-          Comments
+          Post Comments
         </button>
       </div>
 
@@ -338,12 +327,8 @@ export default function Profile() {
                 {...post}
                 showDelete={isOwnProfile}
                 onDelete={async (postId) => {
-                  try {
-                    await api.delete(`/posts/${postId}`);
-                    setPosts((prev) => prev.filter((p) => p.id !== postId));
-                  } catch (err) {
-                    console.error("Failed to delete post:", err);
-                  }
+                  await api.deletePost(postId);
+                  setPosts((prev) => prev.filter((p) => p.id !== postId));
                 }}
               />
             ))
@@ -353,8 +338,8 @@ export default function Profile() {
         ) : (
           <CommentList
             commentsData={comments}
-            onDeleteComment={handleDeleteComment}
-            onUpdateComment={handleUpdateComment}
+            onDeleteComment={(commentId) => handleDeleteComment(commentId)}
+            onUpdateComment={(commentId, newContent) => handleUpdateComment(commentId, newContent)}
             showDelete={isOwnProfile}
             showPostContent={true}
           />

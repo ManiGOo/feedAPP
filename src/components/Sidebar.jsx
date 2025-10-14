@@ -161,7 +161,7 @@ function Sidebar() {
           )}
         </ChatSection>
       </div>
-      <div className="flex-shrink-0 border-t dark:border-gray-800">
+      <div className="flex-shrink-0 border-t dark:border-gray-800 pb-10"> {/* Added pb-10 for extra space */}
         <BottomNav />
       </div>
       {showCreateGroup && (

@@ -1,3 +1,4 @@
+// src/pages/ClipsFeed.jsx (assuming this is the file path)
 import React, { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ClipItem from "../components/ClipItem";
@@ -8,6 +9,7 @@ import api from "../utils/api";
 import useClipsSocket from "../hooks/useClipsSocket";
 import { useAuth } from "../context/AuthContext.jsx";
 import GlobalBottomNav from "../components/GlobalBottomNav.jsx";
+import { ClipsProvider } from "../context/ClipsContext.jsx";
 
 export default function ClipsFeed() {
   const { user: currentUser } = useAuth();
@@ -33,13 +35,11 @@ export default function ClipsFeed() {
     fetchClips();
   }, []);
 
-  // Update Clip Counts
-  const updateClipCounts = useCallback(
-    (clipId, likeCount, commentsCount) => {
+  // Update Clip
+  const updateClip = useCallback(
+    (clipId, updates) => {
       setClips((prev) =>
-        prev.map((c) =>
-          c.id === clipId ? { ...c, like_count: likeCount, comments_count: commentsCount } : c
-        )
+        prev.map((c) => (c.id === clipId ? { ...c, ...updates } : c))
       );
     },
     []
@@ -48,8 +48,10 @@ export default function ClipsFeed() {
   const handleCommentAdded = useCallback(() => {
     const clip = clips[currentIndex];
     if (!clip) return;
-    updateClipCounts(clip.id, clip.like_count, (clip.comments_count || 0) + 1);
-  }, [clips, currentIndex, updateClipCounts]);
+    updateClip(clip.id, {
+      comments_count: (clip.comments_count || 0) + 1,
+    });
+  }, [clips, currentIndex, updateClip]);
 
   const handleNewClip = useCallback(
     async (newClip) => {
@@ -76,7 +78,7 @@ export default function ClipsFeed() {
     []
   );
 
-  useClipsSocket({ clips, setClips, currentIndex, updateClipCounts, handleCommentAdded, handleNewClip });
+  useClipsSocket({ clips, setClips, currentIndex, updateClip, handleCommentAdded, handleNewClip });
 
   // Drag Handling
   const handleDragEnd = (offset, velocity) => {
@@ -93,101 +95,108 @@ export default function ClipsFeed() {
 
   if (loading) return <Loader size={50} color="#3b82f6" />;
 
+  const contextValue = {
+    clips,
+    updateClip,
+    currentIndex,
+  };
+
   return (
-    <div
-      className="relative w-full h-screen bg-black overflow-hidden flex justify-center items-center"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      {/* Upload Button */}
-      <AnimatePresence>
-        {!showComments && !showUpload && (
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed top-4 w-full flex justify-center z-20 bg-black/40 backdrop-blur-md py-3"
-          >
-            <motion.button
-              onClick={() => setShowUpload(true)}
-              className="bg-blue-500 text-white px-5 py-2 rounded-full shadow-lg"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Post Video
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Clips Feed */}
-      <div className="absolute w-full h-full flex justify-center items-center overflow-hidden">
+    <ClipsProvider value={contextValue}>
+      <div
+        className="relative w-full h-screen bg-black overflow-hidden flex justify-center items-center"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        {/* Upload Button */}
         <AnimatePresence>
-          {clips.map((clip, idx) => {
-            if (Math.abs(idx - currentIndex) > 1) return null;
-
-            const isCurrent = idx === currentIndex;
-            const isNext = idx > currentIndex;
-            const baseY = isCurrent
-              ? dragOffset
-              : isNext
-              ? window.innerHeight + dragOffset
-              : -window.innerHeight + dragOffset;
-            const zIndex = isCurrent ? 10 : 5;
-
-            return (
-              <motion.div
-                key={clip.id}
-                drag={isCurrent ? "y" : false}
-                dragConstraints={{ top: 0, bottom: 0 }}
-                dragElastic={0.5}
-                onDrag={(e, info) => setDragOffset(info.offset.y)}
-                onDragEnd={(e, info) => handleDragEnd(info.offset.y, info.velocity.y)}
-                initial={{ y: isNext ? "100%" : "-100%", opacity: 0 }}
-                animate={{ y: baseY, opacity: 1 }}
-                exit={{ y: isNext ? "-100%" : "100%", opacity: 0 }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-                className="absolute w-full h-full flex justify-center items-center"
-                style={{ zIndex }}
+          {!showComments && !showUpload && (
+            <motion.div
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="fixed top-4 w-full flex justify-center z-20 bg-black/40 backdrop-blur-md py-3"
+            >
+              <motion.button
+                onClick={() => setShowUpload(true)}
+                className="bg-blue-500 text-white px-5 py-2 rounded-full shadow-lg"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <div className="w-full h-full max-w-[500px] max-h-[90vh]">
-                  <ClipItem
-                    clip={clip}
-                    isActive={isCurrent}
-                    onCommentClick={() => setShowComments(true)}
-                    updateClipCounts={updateClipCounts}
-                  />
-                </div>
-              </motion.div>
-            );
-          })}
+                Post Video
+              </motion.button>
+            </motion.div>
+          )}
         </AnimatePresence>
-      </div>
 
-      {/* Comments Panel */}
-      {clips[currentIndex] && (
-        <CommentsPanel
-          show={showComments}
-          clip={clips[currentIndex]}
-          onClose={() => setShowComments(false)}
-          onCommentAdded={handleCommentAdded}
-        />
-      )}
+        {/* Clips Feed */}
+        <div className="absolute w-full h-full flex justify-center items-center overflow-hidden">
+          <AnimatePresence>
+            {clips.map((clip, idx) => {
+              if (Math.abs(idx - currentIndex) > 1) return null;
 
-      {/* Upload Overlay */}
-      <UploadClipOverlay
-        show={showUpload}
-        onClose={() => setShowUpload(false)}
-        onUploaded={handleNewClip}
-        currentUser={currentUser}
-      />
+              const isCurrent = idx === currentIndex;
+              const isNext = idx > currentIndex;
+              const baseY = isCurrent
+                ? dragOffset
+                : isNext
+                ? window.innerHeight + dragOffset
+                : -window.innerHeight + dragOffset;
+              const zIndex = isCurrent ? 10 : 5;
 
-      {/* Bottom Navigation */}
-      {!showComments && (
-        <div className="fixed bottom-0 left-0 w-full z-20">
-          <GlobalBottomNav />
+              return (
+                <motion.div
+                  key={clip.id}
+                  drag={isCurrent ? "y" : false}
+                  dragConstraints={{ top: 0, bottom: 0 }}
+                  dragElastic={0.5}
+                  onDrag={(e, info) => setDragOffset(info.offset.y)}
+                  onDragEnd={(e, info) => handleDragEnd(info.offset.y, info.velocity.y)}
+                  initial={{ y: isNext ? "100%" : "-100%", opacity: 0 }}
+                  animate={{ y: baseY, opacity: 1 }}
+                  exit={{ y: isNext ? "-100%" : "100%", opacity: 0 }}
+                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  className="absolute w-full h-full flex justify-center items-center"
+                  style={{ zIndex }}
+                >
+                  <div className="w-full h-full max-w-[500px] max-h-[90vh]">
+                    <ClipItem
+                      clip={clip}
+                      isActive={isCurrent}
+                      onCommentClick={() => setShowComments(true)}
+                    />
+                  </div>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
-      )}
-    </div>
+
+        {/* Comments Panel */}
+        {clips[currentIndex] && (
+          <CommentsPanel
+            show={showComments}
+            clip={clips[currentIndex]}
+            onClose={() => setShowComments(false)}
+            onCommentAdded={handleCommentAdded}
+          />
+        )}
+
+        {/* Upload Overlay */}
+        <UploadClipOverlay
+          show={showUpload}
+          onClose={() => setShowUpload(false)}
+          onUploaded={handleNewClip}
+          currentUser={currentUser}
+        />
+
+        {/* Bottom Navigation */}
+        {!showComments && (
+          <div className="fixed bottom-0 left-0 w-full z-20">
+            <GlobalBottomNav />
+          </div>
+        )}
+      </div>
+    </ClipsProvider>
   );
 }

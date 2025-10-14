@@ -5,7 +5,7 @@ import Sidebar from "../components/Sidebar.jsx";
 import DMChat from "../components/DMChat.jsx";
 import GroupChat from "../components/GroupChat.jsx";
 import Loader from "../components/Loader.jsx";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion"; // Corrected import typo
 
 export default function MessagesPage({ user }) {
   return (

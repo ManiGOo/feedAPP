@@ -1,10 +1,13 @@
+// src/components/ClipItem.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { FaHeart, FaComment, FaPlay } from "react-icons/fa";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
+import { useClips } from "../context/ClipsContext.jsx";
 
-function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
+function ClipItem({ clip, isActive, onCommentClick }) {
+  const { updateClip, currentIndex } = useClips();
   const videoRef = useRef(null);
   const navigate = useNavigate();
 
@@ -58,22 +61,31 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
 
   const toggleLike = async () => {
     if (!clip || isLiking) return;
+
+    const wasLiked = likedByMe;
+    const optimisticLikes = wasLiked ? Math.max(likes - 1, 0) : likes + 1;
+    const newLikedState = !wasLiked;
+
+    // Optimistic update
+    setLikes(optimisticLikes);
+    setLikedByMe(newLikedState);
     setIsLiking(true);
+
     try {
-      const newLikes = likedByMe ? Math.max(likes - 1, 0) : likes + 1;
-      const newLikedState = !likedByMe;
+      const response = wasLiked
+        ? await api.unlikeClip(clip.id)
+        : await api.likeClip(clip.id);
 
-      if (likedByMe) {
-        await api.unlikeClip(clip.id);
-      } else {
-        await api.likeClip(clip.id);
-      }
-
-      setLikes(newLikes);
-      setLikedByMe(newLikedState);
-      updateClipCounts?.(clip.id, newLikes, commentsCount);
+      // Update parent context with server-confirmed values
+      updateClip(clip.id, {
+        like_count: response.like_count,
+        liked_by_me: response.liked_by_me,
+      });
     } catch (err) {
       console.error("Failed to toggle like:", err);
+      // Revert on failure
+      setLikes(clip.like_count || 0);
+      setLikedByMe(clip.liked_by_me || false);
     } finally {
       setIsLiking(false);
     }
@@ -156,6 +168,7 @@ function ClipItem({ clip, isActive, onCommentClick, updateClipCounts }) {
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
           className="flex flex-col items-center"
+          disabled={isLiking}
         >
           <motion.div
             animate={{ color: likedByMe ? "#ef4444" : "#ffffff" }}

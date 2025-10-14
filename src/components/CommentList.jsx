@@ -4,7 +4,13 @@ import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import api from "../utils/api";
 
-export default function CommentList({ commentsData, onDeleteComment, onUpdateComment, showPostContent, showDelete }) {
+export default function CommentList({ 
+  commentsData, 
+  onDeleteComment, 
+  onUpdateComment, 
+  showPostContent, 
+  showDelete 
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState(null);
@@ -17,7 +23,8 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
 
   const handleUpdate = async (commentId) => {
     try {
-      const res = await api.put(`/comments/${commentId}`, { content: editContent });
+      const endpoint = `/comments/${commentId}`;
+      const res = await api.put(endpoint, { content: editContent });
       onUpdateComment(commentId, res.data.content);
       setEditingId(null);
       setEditContent("");
@@ -28,15 +35,18 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
 
   const handleDelete = async (commentId) => {
     try {
-      await api.delete(`/comments/${commentId}`);
+      const endpoint = `/comments/${commentId}`;
+      await api.delete(endpoint);
       onDeleteComment(commentId);
     } catch (err) {
       console.error("Failed to delete comment:", err);
     }
   };
 
-  const goToPost = (postId) => {
-    navigate(`/post/${postId}`);
+  const goToContent = (postId) => {
+    if (postId) {
+      navigate(`/post/${postId}`);
+    }
   };
 
   return (
@@ -49,7 +59,7 @@ export default function CommentList({ commentsData, onDeleteComment, onUpdateCom
         <div
           key={c.id}
           className="relative group p-3 bg-gray-50 dark:bg-gray-800 rounded-xl flex flex-col gap-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all cursor-pointer"
-          onClick={() => goToPost(c.post_id)}
+          onClick={() => goToContent(c.post_id)}
         >
           {/* Post preview */}
           {showPostContent && c.post_content && (
