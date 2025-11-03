@@ -16,7 +16,7 @@ import MessagesPage from "./pages/MessagesPage";
 import { useAuth } from "./context/AuthContext";
 import ClipsFeed from "./pages/ClipsFeed";
 import EditPost from "./pages/EditPost";
-import PostAnalytics from "./pages/PostAnalytics";
+
 import SingleClip from "./components/SingleClip";
 
 function App() {
@@ -127,16 +127,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/post/:id/analytics"
-            element={
-              <ProtectedRoute>
-                <div className="container mx-auto px-4 py-6">
-                  <PostAnalytics />
-                </div>
-              </ProtectedRoute>
-            }
-          />
+
           <Route
             path="/post/edit/:id"
             element={
