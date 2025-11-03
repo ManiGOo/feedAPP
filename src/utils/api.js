@@ -1,151 +1,201 @@
+// utils/api.js
 import axios from "axios";
 import { io } from "socket.io-client";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_URL = import.meta.env.VITE_API_URL?.trim() || "http://localhost:5000/api";
+const WS_URL = API_URL.replace("/api", "").replace(/\/+$/, ""); // clean trailing slash
 
+// === AXIOS INSTANCE ===
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
   headers: { "Content-Type": "application/json" },
 });
 
-const token = localStorage.getItem("accessToken");
-export const socket = io(API_URL.replace("/api", ""), {
-  auth: { token },
-});
+// === SOCKET.IO (with reconnect & auth) ===
+let socket = null;
+const createSocket = () => {
+  const token = localStorage.getItem("accessToken");
+  if (socket) socket.disconnect();
 
+  socket = io(WS_URL, {
+    auth: token ? { token } : {},
+    transports: ["websocket"],
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    autoConnect: true,
+  });
+
+  socket.on("connect", () => console.log("Socket connected:", socket.id));
+  socket.on("connect_error", (err) => console.warn("Socket error:", err.message));
+  socket.on("disconnect", () => console.log("Socket disconnected"));
+};
+
+createSocket();
+
+// Re-auth on token refresh
+const refreshAuth = () => {
+  const token = localStorage.getItem("accessToken");
+  if (socket?.connected && token) {
+    socket.auth.token = token;
+    socket.emit("auth", { token });
+  }
+};
+
+// === INTERCEPTORS ===
 api.interceptors.request.use((config) => {
-  const access = localStorage.getItem("accessToken");
-  if (access) config.headers.Authorization = `Bearer ${access}`;
+  const token = localStorage.getItem("accessToken");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (res) => res,
   async (error) => {
     const original = error.config;
-    if (error.response?.status === 401 && !original._retry) {
-      original._retry = true;
-      try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (!refreshToken) throw new Error("No refresh token");
 
-        const res = await api.post("/auth/refresh", { refreshToken });
-        localStorage.setItem("accessToken", res.data.accessToken);
+    // Avoid infinite loop
+    if (original._retry) return Promise.reject(error);
+    if (error.response?.status !== 401) return Promise.reject(error);
 
-        original.headers.Authorization = `Bearer ${res.data.accessToken}`;
-        return api(original);
-      } catch (err) {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-        window.location.href = "/login";
-        return Promise.reject(err);
-      }
+    original._retry = true;
+
+    try {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (!refreshToken) throw new Error("No refresh token");
+
+      const { data } = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+      localStorage.setItem("accessToken", data.accessToken);
+
+      // Update socket auth
+      refreshAuth();
+
+      original.headers.Authorization = `Bearer ${data.accessToken}`;
+      return api(original);
+    } catch (err) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      window.location.href = "/login";
     }
+
     return Promise.reject(error);
   }
 );
 
-api.getPosts = async () => (await api.get("/posts")).data;
-api.getPostById = async (postId) => (await api.get(`/posts/${postId}`)).data;
-api.createPost = async (data) => {
-  const formData = new FormData();
-  if (data.content) formData.append("content", data.content);
-  if (data.image) formData.append("image", data.image);
-  if (data.video) formData.append("video", data.video);
-  return (await api.post("/posts", formData, { headers: { "Content-Type": "multipart/form-data" } })).data;
+// === POSTS ===
+api.getPosts = (feed) => api.get(`/posts${feed ? `?feed=${feed}` : ""}`).then(r => r.data);
+api.getPostById = (id) => api.get(`/posts/${id}`).then(r => r.data);
+api.createPost = (data) => {
+  const fd = new FormData();
+  if (data.content?.trim()) fd.append("content", data.content.trim());
+  if (data.image) fd.append("image", data.image);
+  if (data.video) fd.append("video", data.video);
+  return api.post("/posts", fd).then(r => r.data);
 };
-api.deletePost = async (postId) => (await api.delete(`/posts/${postId}`)).data;
-api.toggleLikePost = async (postId) => (await api.post(`/posts/${postId}/like`)).data;
+api.updatePost = (id, data) => {
+  const fd = new FormData();
+  if (data.content?.trim()) fd.append("content", data.content.trim());
+  if (data.image) fd.append("image", data.image);
+  if (data.video) fd.append("video", data.video);
+  if (data.removeMedia) fd.append("removeMedia", "true");
+  return api.put(`/posts/${id}`, fd).then(r => r.data);
+};
+api.deletePost = (id) => api.delete(`/posts/${id}`).then(r => r.data);
+api.toggleLike = (id) => api.post(`/posts/${id}/like`).then(r => r.data);
+api.repost = (id) => api.post(`/posts/${id}/repost`).then(r => r.data);
+api.undoRepost = (id) => api.delete(`/posts/${id}/repost`).then(r => r.data);
 
-api.getClips = async () => (await api.get("/clips")).data;
-api.getClipById = async (clipId) => (await api.get(`/clips/${clipId}`)).data;
-api.uploadClip = async (formData, onUploadProgress) => {
-  if (!formData.get("video")) throw new Error("Video file required");
-  return (await api.post("/clips", formData, {
+// utils/api.js
+api.bookmark = (id) => api.post(`/posts/${id}/bookmark`).then(r => r.data);
+api.unbookmark = (id) => api.delete(`/posts/${id}/bookmark`).then(r => r.data);
+api.quote = (id, content, image, video) => {
+  const fd = new FormData();
+  fd.append("content", content);
+  if (image) fd.append("image", image);
+  if (video) fd.append("video", video);
+  fd.append("quote_from", id);
+  return api.post("/posts", fd).then(r => r.data);
+};
+
+// === CLIPS ===
+api.getClips = () => api.get("/clips").then(r => r.data);
+
+api.uploadClip = (fd, onProgress) => {
+  if (!fd.get("video")) throw new Error("Video required");
+  return api.post("/clips", fd, {
     headers: { "Content-Type": "multipart/form-data" },
-    onUploadProgress,
-  })).data;
+    onUploadProgress: onProgress,
+  }).then(r => r.data);
 };
-api.deleteClip = async (clipId) => (await api.delete(`/clips/${clipId}`)).data;
+api.deleteClip = (id) => api.delete(`/clips/${id}`).then(r => r.data);
+api.likeClip = (id) => api.post(`/clips/${id}/like`).then(r => r.data);
+api.unlikeClip = (id) => api.post(`/clips/${id}/unlike`).then(r => r.data);
+api.getClipComments = (id) => api.get(`/clips/${id}/comments`).then(r => r.data);
+api.commentClip = (id, content) => api.post(`/clips/${id}/comment`, { content }).then(r => r.data);
 
-api.likeClip = async (clipId) => (await api.post(`/clips/${clipId}/like`)).data;
-api.unlikeClip = async (clipId) => (await api.post(`/clips/${clipId}/unlike`)).data;
-
-api.getClipComments = async (clipId) => (await api.get(`/clips/${clipId}/comments`)).data;
-api.commentClip = async (clipId, content) =>
-  (await api.post(`/clips/${clipId}/comment`, { content })).data;
-
-api.getCurrentUser = async () => (await api.get("/users/me")).data;
-api.getUserProfile = async (userId) => (await api.get(`/users/profile/${userId}`)).data;
-api.searchUsers = async (query) => {
-  if (!query?.trim()) return [];
-  return (await api.get(`/users/search?q=${encodeURIComponent(query)}`)).data;
+api.getClipById = (clipId) => {
+  return api.get(`/clips/${clipId}`).then((response) => response.data);
 };
-api.getUserFollowing = async (userId) => {
-  if (!userId) throw new Error("User ID required");
-  return (await api.get(`/follow/following/${userId}`)).data;
-};
-api.searchFollowingByUsername = async (query) => {
-  if (!query || !query.trim()) return [];
-  try {
-    const res = await api.get(`/follow/following/search?q=${encodeURIComponent(query.trim())}`);
-    return res.data || [];
-  } catch (err) {
-    if (err.response?.status === 400 || err.response?.status === 404) {
-      console.warn("Bad search request:", err.response.data);
-      return [];
-    }
-    console.error("Error searching following users:", err);
+
+// === USERS ===
+api.getCurrentUser = () => api.get("/users/me").then(r => r.data);
+api.getUserProfile = (id) => api.get(`/users/profile/${id}`).then(r => r.data);
+api.searchUsers = (q) => q?.trim() ? api.get(`/users/search?q=${encodeURIComponent(q.trim())}`).then(r => r.data) : Promise.resolve([]);
+api.getUserFollowing = (id) => api.get(`/follow/following/${id}`).then(r => r.data);
+api.searchFollowingByUsername = (q) => {
+  if (!q?.trim()) return Promise.resolve([]);
+  return api.get(`/follow/following/search?q=${encodeURIComponent(q.trim())}`).then(r => r.data).catch(err => {
+    if (err.response?.status >= 400 && err.response?.status < 500) return [];
     throw err;
-  }
+  });
 };
-api.updateProfile = async (data) => {
-  const formData = new FormData();
-  if (data.username) formData.append("username", data.username);
-  if (data.email) formData.append("email", data.email);
-  if (data.bio !== undefined) formData.append("bio", data.bio);
-  if (data.avatar) formData.append("avatar", data.avatar);
-  else if (data.removeAvatar) formData.append("removeAvatar", "true");
-  if (data.password) formData.append("password", data.password);
-  return (await api.put("/users/me", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  })).data;
+api.updateProfile = (data) => {
+  const fd = new FormData();
+  if (data.username?.trim()) fd.append("username", data.username.trim());
+  if (data.email?.trim()) fd.append("email", data.email.trim());
+  if (data.bio !== undefined) fd.append("bio", data.bio);
+  if (data.password) fd.append("password", data.password);
+  if (data.avatarFile) fd.append("avatar", data.avatarFile);
+  if (data.removeAvatar) fd.append("removeAvatar", "true");
+  return api.put("/users/me", fd).then(r => r.data);
 };
 
-api.getDMs = async () => (await api.get("/messages/dms")).data;
-api.createDM = async (recipientId) => (await api.post("/messages/dm/start", { recipient_id: recipientId })).data;
-api.getDMConversation = async (otherUserId) => (await api.get(`/messages/dm/${otherUserId}`)).data;
-api.getOrCreateDMConversation = async (otherUserId) => {
-  await api.createDM(otherUserId);
-  return api.getDMConversation(otherUserId);
+// === MESSAGES ===
+api.getDMs = () => api.get("/messages/dms").then(r => r.data);
+api.createDM = (id) => api.post("/messages/dm/start", { recipient_id: id }).then(r => r.data);
+api.getDMConversation = (id) => api.get(`/messages/dm/${id}`).then(r => r.data);
+api.getOrCreateDMConversation = async (id) => {
+  try { await api.createDM(id); } catch (e) { /* ignore if exists */ }
+  return api.getDMConversation(id);
 };
 
-api.getGroups = async () => (await api.get("/messages/groups")).data;
-api.getGroupMessages = async (groupId) => (await api.get(`/messages/group/${groupId}`)).data;
-api.createGroup = async ({ name, memberIds, avatar }) => {
-  if (!name || !Array.isArray(memberIds) || memberIds.length === 0) {
-    throw new Error("Group name and at least one member ID required");
-  }
-  const formData = new FormData();
-  formData.append("name", name.trim());
-  formData.append("memberIds", JSON.stringify(memberIds));
-  if (avatar) formData.append("avatar", avatar);
-  return (await api.post("/messages/group/create", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  })).data;
+api.getGroups = () => api.get("/messages/groups").then(r => r.data);
+api.getGroupMessages = (id) => api.get(`/messages/group/${id}`).then(r => r.data);
+api.createGroup = ({ name, memberIds, avatar }) => {
+  if (!name?.trim() || !Array.isArray(memberIds) || memberIds.length === 0)
+    throw new Error("Name and members required");
+  const fd = new FormData();
+  fd.append("name", name.trim());
+  fd.append("memberIds", JSON.stringify(memberIds));
+  if (avatar) fd.append("avatar", avatar);
+  return api.post("/messages/group/create", fd).then(r => r.data);
 };
 
-api.updateMessage = async (messageId, content) => (await api.put(`/messages/message/${messageId}`, { content })).data;
-api.deleteMessage = async (messageId) => (await api.delete(`/messages/message/${messageId}`)).data;
+api.updateMessage = (id, content) => api.put(`/messages/message/${id}`, { content }).then(r => r.data);
+api.deleteMessage = (id) => api.delete(`/messages/message/${id}`).then(r => r.data);
 
-export const onNewClip = (callback) => socket.on("newClip", callback);
-export const onClipLiked = (callback) => socket.on("clipLiked", callback);
-export const onNewClipComment = (callback) => socket.on("newClipComment", callback);
-export const onClipDeleted = (callback) => socket.on("clipDeleted", callback);
+// === SOCKET LISTENERS ===
+export const onNewClip = (cb) => socket.on("newClip", cb);
+export const onClipLiked = (cb) => socket.on("clipLiked", cb);
+export const onNewClipComment = (cb) => socket.on("newClipComment", cb);
+export const onClipDeleted = (cb) => socket.on("clipDeleted", cb);
 
-export const onDMMessage = (callback) => socket.on("dmMessage", callback);
-export const onGroupMessage = (callback) => socket.on("groupMessage", callback);
-export const onMessageDeleted = (callback) => socket.on("messageDeleted", callback);
-export const onErrorMessage = (callback) => socket.on("errorMessage", callback);
+export const onDMMessage = (cb) => socket.on("dmMessage", cb);
+export const onGroupMessage = (cb) => socket.on("groupMessage", cb);
+export const onMessageDeleted = (cb) => socket.on("messageDeleted", cb);
+export const onErrorMessage = (cb) => socket.on("errorMessage", cb);
 
+// === EXPORT ===
+export { socket };
 export default api;

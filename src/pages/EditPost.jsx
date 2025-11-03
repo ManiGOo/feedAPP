@@ -1,3 +1,4 @@
+// pages/EditPost.jsx
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { X } from "lucide-react";
@@ -5,19 +6,20 @@ import api from "../utils/api";
 import Loader from "../components/Loader";
 
 export default function EditPost() {
-  const { id } = useParams(); // postId
+  const { id } = useParams();
   const navigate = useNavigate();
 
   const [post, setPost] = useState(null);
   const [content, setContent] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
-  const [mediaType, setMediaType] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [mediaUrl, setMediaUrl] = useState(""); // preview URL
+  const [mediaType, setMediaType] = useState(null); // "image" | "video" | null
+  const [originalMediaUrl, setOriginalMediaUrl] = useState(""); // from API
   const [newFile, setNewFile] = useState(null);
   const [removingMedia, setRemovingMedia] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Fetch the post
+  // Fetch post
   useEffect(() => {
     const fetchPost = async () => {
       try {
@@ -25,6 +27,7 @@ export default function EditPost() {
         setPost(data);
         setContent(data.content || "");
         if (data.media_url) {
+          setOriginalMediaUrl(data.media_url);
           setMediaUrl(data.media_url);
           setMediaType(data.media_type);
         }
@@ -43,7 +46,15 @@ export default function EditPost() {
     setNewFile(file);
     setMediaUrl(URL.createObjectURL(file));
     setMediaType(file.type.startsWith("video/") ? "video" : "image");
-    setRemovingMedia(false);
+    setRemovingMedia(false); // reset if previously removed
+  };
+
+  const handleRemoveMedia = () => {
+    setRemovingMedia(true);
+    setMediaUrl("");
+    setMediaType(null);
+    setNewFile(null);
+    URL.revokeObjectURL(mediaUrl); // clean up preview
   };
 
   const handleSubmit = async () => {
@@ -53,9 +64,13 @@ export default function EditPost() {
       const formData = new FormData();
       formData.append("content", content);
 
-      if (removingMedia) {
+      // Case 1: User removed original media
+      if (originalMediaUrl && removingMedia) {
         formData.append("removeMedia", "true");
-      } else if (newFile) {
+      }
+
+      // Case 2: User uploaded new file
+      if (newFile) {
         const key = newFile.type.startsWith("video/") ? "video" : "image";
         formData.append(key, newFile);
       }
@@ -64,10 +79,10 @@ export default function EditPost() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      navigate(`/post/${id}`); // go back to post view
+      navigate(`/post/${id}`);
     } catch (err) {
-      console.error("Failed to update post:", err);
-      alert("Failed to update post. Try again later.");
+        console.error("Failed to update post:", err);
+        alert("Failed to update post. Try again later.");
     } finally {
       setSaving(false);
     }
@@ -89,6 +104,8 @@ export default function EditPost() {
     );
   }
 
+  const hasMedia = mediaUrl && !removingMedia;
+
   return (
     <div className="min-h-screen flex flex-col items-center pt-20 pb-10 px-4">
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 w-full max-w-2xl shadow-lg">
@@ -96,12 +113,12 @@ export default function EditPost() {
           Edit Post
         </h2>
 
-        {/* Media Preview */}
-        {mediaUrl && !removingMedia && (
+        {/* MEDIA SECTION */}
+        {hasMedia ? (
           <div className="relative mb-4">
             <button
-              onClick={() => setRemovingMedia(true)}
-              className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition"
+              onClick={handleRemoveMedia}
+              className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 transition z-10"
             >
               <X size={18} />
             </button>
@@ -119,24 +136,29 @@ export default function EditPost() {
               />
             )}
           </div>
-        )}
-
-        {/* Upload New Media */}
-        {removingMedia && (
-          <div className="mb-4 border border-dashed border-gray-400 dark:border-gray-600 rounded-xl p-4 text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-2">
-              Upload new image or video
+        ) : (
+          <div className="mb-4 border border-dashed border-gray-400 dark:border-gray-600 rounded-xl p-6 text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-3">
+              {originalMediaUrl ? "Upload new image or video" : "Add image or video"}
             </p>
-            <input
-              type="file"
-              accept="image/*,video/*"
-              onChange={handleFileChange}
-              className="text-sm text-gray-600 dark:text-gray-300"
-            />
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept="image/*,video/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition">
+                Choose File
+              </div>
+            </label>
+            <p className="text-xs text-gray-400 mt-2">
+              Max 50MB • MP4, MOV, JPG, PNG
+            </p>
           </div>
         )}
 
-        {/* Editable Text Area */}
+        {/* TEXTAREA */}
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -144,7 +166,7 @@ export default function EditPost() {
           placeholder="Edit your post content..."
         />
 
-        {/* Buttons */}
+        {/* BUTTONS */}
         <div className="flex justify-end gap-3 mt-5">
           <button
             onClick={() => navigate(-1)}
@@ -155,14 +177,14 @@ export default function EditPost() {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className={`px-4 py-2 rounded-lg text-white transition ${saving
+            className={`px-4 py-2 rounded-lg text-white font-medium transition ${
+              saving
                 ? "bg-blue-400 cursor-not-allowed"
                 : "bg-blue-600 hover:bg-blue-700"
-              }`}
+            }`}
           >
-            Done
+            {saving ? "Saving..." : "Done"}
           </button>
-
         </div>
       </div>
     </div>

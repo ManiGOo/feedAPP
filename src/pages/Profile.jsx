@@ -1,7 +1,7 @@
-// src/components/Profile.jsx
-import { useEffect, useState } from "react";
+// pages/Profile.jsx
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Edit3, User, X, Search } from "lucide-react";
+import { Edit3, User, Search, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import Loader from "../components/Loader";
@@ -20,110 +20,114 @@ export default function Profile() {
   const id = paramId || currentUser?.id;
   const isOwnProfile = id === currentUser?.id;
 
-  const [profile, setProfile] = useState(null);
-  const [posts, setPosts] = useState([]);
-  const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [following, setFollowing] = useState(false);
-  const [message, setMessage] = useState("");
-  const [activeTab, setActiveTab] = useState("posts"); // posts | comments
+  const [updating, setUpdating] = useState(false);
+  const [activeTab, setActiveTab] = useState("posts");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
 
-  const fetchProfile = async () => {
+  const [profile, setProfile] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [following, setFollowing] = useState(false);
+
+  const [toast, setToast] = useState({ message: "", type: "" });
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast({ message: "", type: "" }), 3000);
+  };
+
+  const fetchProfile = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
       const endpoint = isOwnProfile ? "/users/me" : `/users/profile/${id}`;
       const res = await api.get(endpoint);
-      const userData = res.data.user;
+      const { user: userData, posts: rawPosts = [], comments: rawComments = [] } = res.data;
 
-      userData.followersCount = userData.followersCount ?? 0;
-      userData.followingCount = userData.followingCount ?? 0;
-      setProfile(userData);
+      const normalizedUser = {
+        ...userData,
+        followersCount: userData.followersCount ?? 0,
+        followingCount: userData.followingCount ?? 0,
+      };
+      setProfile(normalizedUser);
       if (!isOwnProfile) setFollowing(userData.isFollowedByMe || false);
 
-      // Map posts
-      const userPosts = (res.data.posts || []).map((p) => ({
+      const normalizedPosts = rawPosts.map((p) => ({
         ...p,
-        author: p.author || userData.username,
-        avatar_url: p.avatar_url || userData.avatar_url || null,
-        commentsNumber: p.comments?.length || 0,
+        author: p.author || normalizedUser.username,
+        author_avatar: p.author_avatar || normalizedUser.avatar_url,
         image: p.media_type === "image" ? p.media_url : null,
         video: p.media_type === "video" ? p.media_url : null,
-        comments: p.comments || [],
+        // Pass stats directly
+        like_count: p.like_count || 0,
+        liked_by_me: p.liked_by_me || false,
+        repost_count: p.repost_count || 0,
+        reposted_by_me: p.reposted_by_me || false,
+        comments_count: p.comments_count || 0,
+        bookmark_count: p.bookmark_count || 0,
+        bookmarked_by_me: p.bookmarked_by_me || false,
       }));
-      setPosts(userPosts);
+      setPosts(normalizedPosts);
 
-      // Map post comments
-      const userComments = (res.data.comments || []).map((c) => ({
-        id: c.id,
-        content: c.content,
-        created_at: c.created_at,
-        post_id: c.post_id,
-        user_id: c.user_id,
-        username: c.username || userData.username,
-        avatar_url: c.avatar_url || userData.avatar_url || null,
-        post_content: c.post_content,
+      const normalizedComments = rawComments.map((c) => ({
+        ...c,
+        username: c.username || normalizedUser.username,
+        avatar_url: c.avatar_url || normalizedUser.avatar_url,
       }));
-      setComments(userComments);
+      setComments(normalizedComments);
     } catch (err) {
       console.error("Failed to load profile:", err);
-      setMessage("Failed to load profile.");
+      showToast("Failed to load profile.", "error");
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, isOwnProfile]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
-    if (!searchQuery.trim()) {
+    const query = searchQuery.trim();
+    if (!query) {
       setSearchResults([]);
       return;
     }
-
     try {
-      const res = await api.searchUsers(searchQuery);
-      setSearchResults(res);
+      const results = await api.searchUsers(query);
+      setSearchResults(results);
     } catch (err) {
-      console.error("Search failed:", err);
-      setMessage("Failed to search users.");
+      showToast("Search failed.", "error");
     }
   };
 
   const handleUpdate = async (formData) => {
+    setUpdating(true);
     try {
-      const uploadData = new FormData();
-      if (formData.username) uploadData.append("username", formData.username);
-      if (formData.email) uploadData.append("email", formData.email);
-      if (formData.bio !== undefined) uploadData.append("bio", formData.bio);
-      if (formData.avatarFile) uploadData.append("avatar", formData.avatarFile);
-      else if (formData.removeAvatar) uploadData.append("removeAvatar", "true");
-
-      const res = await api.updateProfile(uploadData);
+      const res = await api.updateProfile(formData);
       setProfile(res.user);
       setEditing(false);
-      setMessage("Profile updated!");
-      setTimeout(() => setMessage(""), 2000);
+      showToast("Profile updated successfully!", "success");
+      fetchProfile();
     } catch (err) {
-      console.error("Update failed:", err);
-      setMessage("Update failed.");
+      const errorMsg = err.response?.data?.error || err.message;
+      showToast(`Update failed: ${errorMsg}`, "error");
+    } finally {
+      setUpdating(false);
     }
   };
 
   const toggleFollow = async () => {
+    if (!profile) return;
     try {
       const res = await api.post(`/follow/toggle/${profile.id}`);
       setFollowing(res.data.isFollowing);
       setProfile((prev) => ({
         ...prev,
-        followersCount: res.data.isFollowing
-          ? prev.followersCount + 1
-          : prev.followersCount - 1,
+        followersCount: res.data.isFollowing ? prev.followersCount + 1 : prev.followersCount - 1,
       }));
     } catch (err) {
-      console.error("Follow/unfollow failed:", err);
+      showToast("Failed to update follow status.", "error");
     }
   };
 
@@ -131,8 +135,9 @@ export default function Profile() {
     try {
       await api.delete(`/comments/${commentId}`);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
+      showToast("Comment deleted.");
     } catch (err) {
-      console.error("Failed to delete comment:", err);
+      showToast("Failed to delete comment.", "error");
     }
   };
 
@@ -142,14 +147,15 @@ export default function Profile() {
       setComments((prev) =>
         prev.map((c) => (c.id === commentId ? { ...c, content: res.data.content } : c))
       );
+      showToast("Comment updated.");
     } catch (err) {
-      console.error("Failed to update comment:", err);
+      showToast("Failed to update comment.", "error");
     }
   };
 
   useEffect(() => {
     fetchProfile();
-  }, [id]);
+  }, [fetchProfile]);
 
   if (loading) {
     return (
@@ -161,224 +167,274 @@ export default function Profile() {
 
   if (!profile) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <p className="text-gray-500">Profile not found.</p>
+      <div className="flex flex-col items-center justify-center h-screen px-4 text-center">
+        <AlertCircle className="w-12 h-12 text-gray-400 mb-4" />
+        <p className="text-lg text-gray-600 dark:text-gray-400">Profile not found.</p>
       </div>
     );
   }
 
   return (
-    <div className="pt-20 max-w-2xl mx-auto px-4 pb-20 relative">
-      <Navbar />
+    <>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pt-20 pb-24">
+        <div className="max-w-2xl mx-auto px-4">
+          <Navbar />
 
-      {/* Search Bar */}
-      <div className="mb-6">
-        <form onSubmit={handleSearch} className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users..."
-              className="w-full p-2 pl-10 border rounded-lg dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          </div>
-          <button
-            type="submit"
-            className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-          >
-            Search
-          </button>
-        </form>
+          {/* Search Bar */}
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search users..."
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              </div>
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors"
+              >
+                Search
+              </button>
+            </form>
 
-        {searchResults.length > 0 && (
-          <div className="mt-4 bg-white dark:bg-gray-900 rounded-lg shadow p-4">
-            <h3 className="text-lg font-semibold mb-2">Search Results</h3>
-            <div className="space-y-2">
-              {searchResults.map((user) => (
-                <div
-                  key={user.id}
-                  className="flex items-center justify-between p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer"
-                  onClick={() => {
-                    navigate(`/profile/${user.id}`);
-                    setSearchQuery("");
-                    setSearchResults([]);
-                  }}
+            <AnimatePresence>
+              {searchResults.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-3 bg-white dark:bg-gray-900 rounded-xl shadow-lg overflow-hidden"
                 >
-                  <div className="flex items-center gap-2">
-                    {user.avatar_url ? (
-                      <img
-                        src={user.avatar_url}
-                        alt={user.username}
-                        className="w-8 h-8 rounded-full object-cover"
-                      />
-                    ) : (
-                      <User className="w-8 h-8 text-gray-400" />
-                    )}
-                    <div>
-                      <p className="font-medium">{user.username}</p>
-                      <p className="text-sm text-gray-500">{user.bio || "No bio"}</p>
+                  {searchResults.map((user) => (
+                    <div
+                      key={user.id}
+                      onClick={() => {
+                        navigate(`/profile/${user.id}`);
+                        setSearchQuery("");
+                        setSearchResults([]);
+                      }}
+                      className="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt={user.username} className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                            <User className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">{user.username}</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
+                            {user.bio || "No bio"}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-sm text-gray-500">{user.followers_count} followers</span>
                     </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {user.followers_count} followers
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
 
-      {/* Profile Card */}
-      <div
-        className={`bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-6 flex flex-col items-center transition-all ${
-          editing ? "blur-sm pointer-events-none select-none" : ""
-        }`}
-      >
-        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-blue-500 flex items-center justify-center">
-          {profile.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt={profile.username}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <User className="w-12 h-12 text-gray-400" />
-          )}
+          {/* Profile Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 transition-all ${editing ? "blur-sm pointer-events-none" : ""}`}
+          >
+            <div className="flex flex-col items-center">
+              <div className="relative">
+                <div className="w-28 h-28 rounded-full overflow-hidden ring-4 ring-blue-500 ring-offset-2 dark:ring-offset-gray-900">
+                  {profile.avatar_url ? (
+                    <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                      <User className="w-14 h-14 text-white" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 text-center">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{profile.username}</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{profile.email}</p>
+                {profile.bio && (
+                  <p className="mt-2 text-gray-600 dark:text-gray-300 max-w-md mx-auto">{profile.bio}</p>
+                )}
+
+                <div className="flex justify-center gap-6 mt-4 text-sm">
+                  <button
+                    onClick={() => navigate(`/follow/followers/${profile.id}`)}
+                    className="text-gray-700 dark:text-gray-300 hover:underline font-medium"
+                  >
+                    {profile.followersCount} <span className="text-gray-500">Followers</span>
+                  </button>
+                  <button
+                    onClick={() => navigate(`/follow/following/${profile.id}`)}
+                    className="text-gray-700 dark:text-gray-300 hover:underline font-medium"
+                  >
+                    {profile.followingCount} <span className="text-gray-500">Following</span>
+                  </button>
+                </div>
+
+                <div className="mt-6">
+                  {isOwnProfile ? (
+                    <button
+                      onClick={() => setEditing(true)}
+                      className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      Edit Profile
+                    </button>
+                  ) : (
+                    <button
+                      onClick={toggleFollow}
+                      disabled={updating}
+                      className={`px-6 py-2.5 rounded-xl font-medium transition-all ${
+                        following
+                          ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+                          : "bg-blue-600 text-white hover:bg-blue-700"
+                      } focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${
+                        following ? "focus:ring-gray-500" : "focus:ring-blue-500"
+                      }`}
+                    >
+                      {updating ? (
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                      ) : following ? (
+                        "Following"
+                      ) : (
+                        "Follow"
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Tabs */}
+          <div className="mt-8 -mb-px flex border-b border-gray-200 dark:border-gray-800">
+            <button
+              onClick={() => setActiveTab("posts")}
+              className={`flex-1 py-3 text-center font-medium text-sm transition-colors ${
+                activeTab === "posts"
+                  ? "text-blue-600 dark:text-blue-500 border-b-2 border-blue-600 dark:border-blue-500"
+                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              Posts
+            </button>
+            <button
+              onClick={() => setActiveTab("comments")}
+              className={`flex-1 py-3 text-center font-medium text-sm transition-colors ${
+                activeTab === "comments"
+                  ? "text-blue-600 dark:text-blue-500 border-b-2 border-blue-600 dark:border-blue-500"
+                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              }`}
+            >
+              Comments
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="mt-6 space-y-4 pb-8">
+            <AnimatePresence mode="wait">
+              {activeTab === "posts" ? (
+                <motion.div key="posts" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+                  {posts.length > 0 ? (
+                    posts.map((post) => (
+                      <PostCard
+                        key={post.id}
+                        {...post}
+                        showDelete={isOwnProfile}
+                        onDelete={async (postId) => {
+                          await api.deletePost(postId);
+                          setPosts((prev) => prev.filter((p) => p.id !== postId));
+                          showToast("Post deleted.");
+                        }}
+                        hideEdit={false}
+                      />
+                    ))
+                  ) : (
+                    <p className="text-center text-gray-500 py-8">No posts yet.</p>
+                  )}
+                </motion.div>
+              ) : (
+                <motion.div key="comments" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
+                  <CommentList
+                    commentsData={comments}
+                    onDeleteComment={handleDeleteComment}
+                    onUpdateComment={handleUpdateComment}
+                    showDelete={isOwnProfile}
+                    showPostContent={true}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
-        <div className="text-center mt-6">
-          <h2 className="text-xl font-bold">{profile.username}</h2>
-          <p className="text-gray-500">{profile.email}</p>
-          <p className="text-gray-600 dark:text-gray-400">{profile.bio}</p>
-
-          <div className="flex justify-center gap-4 mt-2 text-sm text-gray-700 dark:text-gray-300">
-            <span
-              className="cursor-pointer hover:underline"
-              onClick={() => navigate(`/follow/followers/${profile.id}`)}
+        {/* Edit Modal */}
+        <AnimatePresence>
+          {editing && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+              onClick={() => setEditing(false)}
             >
-              {profile.followersCount} Followers
-            </span>
-            <span
-              className="cursor-pointer hover:underline"
-              onClick={() => navigate(`/follow/following/${profile.id}`)}
-            >
-              {profile.followingCount} Following
-            </span>
-          </div>
-
-          {isOwnProfile ? (
-            <div className="flex justify-center mt-4">
-              <button
-                onClick={() => setEditing(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-1 hover:bg-blue-700 transition-all duration-200"
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
               >
-                <Edit3 size={16} /> Edit Profile
-              </button>
-            </div>
-          ) : (
-            <div className="flex justify-center mt-4">
-              <button
-                onClick={toggleFollow}
-                className={`px-4 py-2 rounded-lg font-medium ${
-                  following
-                    ? "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                    : "bg-blue-500 text-white hover:bg-blue-600"
+                <EditProfileForm
+                  user={profile}
+                  onCancel={() => setEditing(false)}
+                  onSave={handleUpdate}
+                  isLoading={updating}
+                />
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Toast */}
+        <AnimatePresence>
+          {toast.message && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50"
+            >
+              <div
+                className={`flex items-center gap-2 px-4 py-3 rounded-full shadow-lg text-white font-medium ${
+                  toast.type === "success" ? "bg-green-600" : "bg-red-600"
                 }`}
               >
-                {following ? "Following" : "Follow"}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {message && <p className="text-sm text-green-600 mt-3">{message}</p>}
-      </div>
-
-      {/* Tabs */}
-      <div className="mt-6 flex border-b border-gray-200 dark:border-gray-700">
-        <button
-          className={`flex-1 py-2 text-center font-medium ${
-            activeTab === "posts" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
-          }`}
-          onClick={() => setActiveTab("posts")}
-        >
-          Posts
-        </button>
-        <button
-          className={`flex-1 py-2 text-center font-medium ${
-            activeTab === "comments" ? "border-b-2 border-blue-500 text-blue-600" : "text-gray-500"
-          }`}
-          onClick={() => setActiveTab("comments")}
-        >
-          Post Comments
-        </button>
-      </div>
-
-      {/* Tab Content */}
-      <div className="mt-4 space-y-4">
-        {activeTab === "posts" ? (
-          posts.length > 0 ? (
-            posts.map((post) => (
-              <PostCard
-                key={post.id}
-                {...post}
-                showDelete={isOwnProfile}
-                onDelete={async (postId) => {
-                  await api.deletePost(postId);
-                  setPosts((prev) => prev.filter((p) => p.id !== postId));
-                }}
-              />
-            ))
-          ) : (
-            <p className="text-gray-500">No posts yet.</p>
-          )
-        ) : (
-          <CommentList
-            commentsData={comments}
-            onDeleteComment={(commentId) => handleDeleteComment(commentId)}
-            onUpdateComment={(commentId, newContent) => handleUpdateComment(commentId, newContent)}
-            showDelete={isOwnProfile}
-            showPostContent={true}
-          />
-        )}
-      </div>
-
-      {/* Edit Profile Modal */}
-      <AnimatePresence>
-        {editing && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4"
-          >
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              className="bg-white dark:bg-gray-900 rounded-2xl p-6 max-w-md w-full shadow-xl relative"
-            >
-              <button
-                onClick={() => setEditing(false)}
-                className="absolute top-3 right-3 text-gray-600 dark:text-gray-300 hover:text-red-500"
-              >
-                <X size={20} />
-              </button>
-              <EditProfileForm
-                user={profile}
-                onCancel={() => setEditing(false)}
-                onSave={handleUpdate}
-              />
+                {toast.type === "success" ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <AlertCircle className="w-5 h-5" />
+                )}
+                <span>{toast.message}</span>
+              </div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      <GlobalBottomNav />
-    </div>
+        <GlobalBottomNav />
+      </div>
+    </>
   );
 }

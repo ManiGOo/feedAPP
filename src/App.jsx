@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -15,10 +16,18 @@ import MessagesPage from "./pages/MessagesPage";
 import { useAuth } from "./context/AuthContext";
 import ClipsFeed from "./pages/ClipsFeed";
 import EditPost from "./pages/EditPost";
+import PostAnalytics from "./pages/PostAnalytics";
+import SingleClip from "./components/SingleClip";
 
 function App() {
   const location = useLocation();
   const { loading: authLoading, user } = useAuth();
+
+  // Full-screen pages: no padding, no container, full height
+  const fullScreenPaths = ["/messages", "/clips"];
+  const isFullScreen = fullScreenPaths.some(path => 
+    location.pathname.startsWith(path)
+  );
 
   if (authLoading) {
     return (
@@ -28,34 +37,17 @@ function App() {
     );
   }
 
-  // Apply full-screen layout for MessagesPage and ClipsFeed
-  const isFullScreenPage =
-    location.pathname.startsWith("/messages") ||
-    location.pathname.startsWith("/clips");
-
   return (
-    <div
-      className={`flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors ${
-        isFullScreenPage ? "h-screen overflow-hidden" : "min-h-screen"
-      }`}
-    >
-      <main
-        className={`${
-          isFullScreenPage ? "h-full" : "flex-1 container mx-auto px-4 py-6"
-        }`}
-      >
+    <div className={`
+      flex flex-col
+      bg-gray-50 dark:bg-gray-950
+      text-gray-900 dark:text-gray-100
+      transition-colors
+      ${isFullScreen ? "h-screen overflow-hidden" : "min-h-screen"}
+    `}>
+      <main className={isFullScreen ? "h-full" : "flex-1"}>
         <Routes>
-          {/* Protected routes */}
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Home />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Clips / Reels feed */}
+          {/* === FULL-SCREEN ROUTES === */}
           <Route
             path="/clips"
             element={
@@ -64,10 +56,16 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Messages route */}
           <Route
-            path="/messages"
+            path="/clips/:clipId"
+            element={
+              <ProtectedRoute>
+                <SingleClip />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/messages/*"
             element={
               <ProtectedRoute>
                 <MessagesPage user={user} />
@@ -75,13 +73,26 @@ function App() {
             }
           />
 
-          {/* Profile routes */}
+          {/* === STANDARD LAYOUT ROUTES === */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <div className="container mx-auto px-4 py-6">
+                  <Home />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
           <Route path="/profile" element={<Navigate to="/profile/me" replace />} />
           <Route
             path="/profile/me"
             element={
               <ProtectedRoute>
-                <Profile user={user} />
+                <div className="container mx-auto px-4 py-6">
+                  <Profile user={user} />
+                </div>
               </ProtectedRoute>
             }
           />
@@ -89,17 +100,20 @@ function App() {
             path="/profile/:id"
             element={
               <ProtectedRoute>
-                <Profile />
+                <div className="container mx-auto px-4 py-6">
+                  <Profile />
+                </div>
               </ProtectedRoute>
             }
           />
 
-          {/* Post routes */}
           <Route
             path="/posts/:id"
             element={
               <ProtectedRoute>
-                <PostDetail />
+                <div className="container mx-auto px-4 py-6">
+                  <PostDetail />
+                </div>
               </ProtectedRoute>
             }
           />
@@ -107,25 +121,19 @@ function App() {
             path="/post/:id"
             element={
               <ProtectedRoute>
-                <PostPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Other protected routes */}
-          <Route
-            path="/following"
-            element={
-              <ProtectedRoute>
-                <Following />
+                <div className="container mx-auto px-4 py-6">
+                  <PostPage />
+                </div>
               </ProtectedRoute>
             }
           />
           <Route
-            path="/follow/:type/:userId"
+            path="/post/:id/analytics"
             element={
               <ProtectedRoute>
-                <Follow />
+                <div className="container mx-auto px-4 py-6">
+                  <PostAnalytics />
+                </div>
               </ProtectedRoute>
             }
           />
@@ -133,16 +141,39 @@ function App() {
             path="/post/edit/:id"
             element={
               <ProtectedRoute>
-                <EditPost />
+                <div className="container mx-auto px-4 py-6">
+                  <EditPost />
+                </div>
               </ProtectedRoute>
             }
           />
 
-          {/* Public routes */}
+          <Route
+            path="/following"
+            element={
+              <ProtectedRoute>
+                <div className="container mx-auto px-4 py-6">
+                  <Following />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/follow/:type/:userId"
+            element={
+              <ProtectedRoute>
+                <div className="container mx-auto px-4 py-6">
+                  <Follow />
+                </div>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* === PUBLIC ROUTES === */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
 
-          {/* Catch-all */}
+          {/* === 404 === */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
