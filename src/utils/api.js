@@ -84,22 +84,34 @@ api.interceptors.response.use(
 );
 
 // === POSTS ===
-api.getPosts = (feed) => api.get(`/posts${feed ? `?feed=${feed}` : ""}`).then(r => r.data);
+api.getPosts = (feed = null) => {
+  const url = feed ? `/posts?feed=${feed}` : "/posts";
+  return api.get(url).then(r => Array.isArray(r.data) ? r.data : []);
+};
 api.getPostById = (id) => api.get(`/posts/${id}`).then(r => r.data);
+// CREATE POST
 api.createPost = (data) => {
   const fd = new FormData();
   if (data.content?.trim()) fd.append("content", data.content.trim());
   if (data.image) fd.append("image", data.image);
   if (data.video) fd.append("video", data.video);
-  return api.post("/posts", fd).then(r => r.data);
+
+  return api.post("/posts", fd, {
+    headers: { "Content-Type": undefined },
+  }).then(r => r.data);
 };
+
+// UPDATE POST
 api.updatePost = (id, data) => {
   const fd = new FormData();
   if (data.content?.trim()) fd.append("content", data.content.trim());
   if (data.image) fd.append("image", data.image);
   if (data.video) fd.append("video", data.video);
   if (data.removeMedia) fd.append("removeMedia", "true");
-  return api.put(`/posts/${id}`, fd).then(r => r.data);
+
+  return api.put(`/posts/${id}`, fd, {
+    headers: { "Content-Type": undefined },
+  }).then(r => r.data);
 };
 api.deletePost = (id) => api.delete(`/posts/${id}`).then(r => r.data);
 api.toggleLike = (id) => api.post(`/posts/${id}/like`).then(r => r.data);
@@ -150,16 +162,6 @@ api.searchFollowingByUsername = (q) => {
     if (err.response?.status >= 400 && err.response?.status < 500) return [];
     throw err;
   });
-};
-api.updateProfile = (data) => {
-  const fd = new FormData();
-  if (data.username?.trim()) fd.append("username", data.username.trim());
-  if (data.email?.trim()) fd.append("email", data.email.trim());
-  if (data.bio !== undefined) fd.append("bio", data.bio);
-  if (data.password) fd.append("password", data.password);
-  if (data.avatarFile) fd.append("avatar", data.avatarFile);
-  if (data.removeAvatar) fd.append("removeAvatar", "true");
-  return api.put("/users/me", fd).then(r => r.data);
 };
 
 // === MESSAGES ===

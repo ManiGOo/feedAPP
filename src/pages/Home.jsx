@@ -1,3 +1,4 @@
+// pages/Home.jsx
 import { useEffect, useState, useRef } from "react";
 import PostCard from "../components/PostCard";
 import CreatePost from "../components/CreatePost";
@@ -20,12 +21,13 @@ export default function Home() {
   const [headerVisible, setHeaderVisible] = useState(true);
   const lastScrollY = useRef(0);
 
-  /* === FETCH POSTS === */
+  /* === FETCH POSTS (ALL) === */
   useEffect(() => {
     if (!user) return;
+
     const fetchPosts = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
         const feed = tab === "following" ? "following" : null;
         const data = await api.getPosts(feed);
         const normalized = data.map((p) => ({
@@ -48,6 +50,7 @@ export default function Home() {
         setLoading(false);
       }
     };
+
     fetchPosts();
   }, [user, tab]);
 
@@ -67,9 +70,8 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  /* === HANDLE NEW POST === */
+  /* === NEW POST HANDLER === */
   const handleNewPost = (post) => {
-    // `post` comes from the backend → it already contains author, avatar_url, etc.
     const newPost = {
       ...post,
       author: post.author ?? user.username,
@@ -122,6 +124,7 @@ export default function Home() {
   return (
     <div className={`min-h-screen bg-gray-50 dark:bg-black ${showCreate ? "" : "pb-20"}`}>
       <Navbar />
+
       {/* === STICKY TABS === */}
       <motion.div
         animate={{ y: headerVisible ? 0 : -60 }}
@@ -158,12 +161,12 @@ export default function Home() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
               {tab === "following"
                 ? "You’re not following anyone yet"
-                : "Welcome to your timeline"}
+                : "No posts yet"}
             </h3>
             <p className="text-gray-500 dark:text-gray-400">
               {tab === "following"
                 ? "Follow people to see their posts here."
-                : "Posts from people you follow will appear here."}
+                : "Be the first to post!"}
             </p>
           </div>
         ) : (
@@ -212,7 +215,6 @@ export default function Home() {
               className="bg-white dark:bg-black w-full max-w-lg rounded-t-3xl shadow-2xl overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Modal Header */}
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
                 <button
                   onClick={() => setShowCreate(false)}
@@ -223,8 +225,6 @@ export default function Home() {
                 <span className="text-sm font-semibold text-blue-500">Draft</span>
                 <div className="w-10" />
               </div>
-
-              {/* CreatePost Form */}
               <div className="max-h-[70vh] overflow-y-auto">
                 <CreatePost onNewPost={handleNewPost} onClose={() => setShowCreate(false)} />
               </div>
@@ -233,7 +233,7 @@ export default function Home() {
         )}
       </AnimatePresence>
 
-      {/* === BOTTOM NAV — HIDDEN WHEN MODAL IS OPEN === */}
+      {/* === BOTTOM NAV === */}
       <AnimatePresence>
         {!showCreate && (
           <motion.div

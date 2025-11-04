@@ -1,68 +1,88 @@
-import { useState, useEffect } from "react";
-import { Save, X, Upload, Trash2, Check, AlertCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Save, X, Upload, Trash2, AlertCircle } from "lucide-react";
 
 export default function EditProfileForm({ user, onCancel, onSave, isLoading = false }) {
-  const [formData, setFormData] = useState({
-    username: user.username || "",
-    email: user.email || "",
-    bio: user.bio || "",
-    avatarFile: null,
-    removeAvatar: false,
-  });
+  const [username, setUsername] = useState(user.username || "");
+  const [email, setEmail] = useState(user.email || "");
+  const [bio, setBio] = useState(user.bio || "");
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [removeAvatar, setRemoveAvatar] = useState(false);
 
   const [previewUrl, setPreviewUrl] = useState(user.avatar_url || null);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  // Sync preview when avatar changes
+  // Update preview when avatar changes
   useEffect(() => {
-    if (formData.avatarFile) {
-      const url = URL.createObjectURL(formData.avatarFile);
+    if (avatarFile) {
+      const url = URL.createObjectURL(avatarFile);
       setPreviewUrl(url);
       return () => URL.revokeObjectURL(url);
-    } else if (formData.removeAvatar) {
+    } else if (removeAvatar) {
       setPreviewUrl(null);
     } else {
       setPreviewUrl(user.avatar_url || null);
     }
-  }, [formData.avatarFile, formData.removeAvatar, user.avatar_url]);
+  }, [avatarFile, removeAvatar, user.avatar_url]);
 
-  // Validation
-  const validate = () => {
+  // Pure validation: Computes errors without side effects
+  const getValidationErrors = useMemo(() => {
     const newErrors = {};
 
-    if (!formData.username.trim()) {
+    if (!username.trim()) {
       newErrors.username = "Username is required";
-    } else if (formData.username.length < 3) {
+    } else if (username.length < 3) {
       newErrors.username = "Username must be at least 3 characters";
-    } else if (formData.username.length > 30) {
+    } else if (username.length > 30) {
       newErrors.username = "Username must not exceed 30 characters";
     }
 
-    if (!formData.email.trim()) {
+    if (!email.trim()) {
       newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       newErrors.email = "Invalid email address";
     }
 
-    if (formData.bio && formData.bio.length > 160) {
+    if (bio && bio.length > 160) {
       newErrors.bio = "Bio must not exceed 160 characters";
     }
 
+    return newErrors;
+  }, [username, email, bio]);  // Recompute only when inputs change
+
+  // Derived: Is form valid? (pure, no side effects)
+  const isValid = useMemo(() => {
+    return Object.keys(getValidationErrors).length === 0;
+  }, [getValidationErrors]);
+
+  // Side effect: Update errors on blur (only for touched fields)
+  const handleBlur = (field) => {
+    setTouched({ ...touched, [field]: true });
+    const fieldErrors = { [field]: getValidationErrors[field] };
+    setErrors(prev => ({ ...prev, ...fieldErrors }));
+  };
+
+  // Side effect: Full validation on submit
+  const validateAndSetErrors = () => {
+    const newErrors = getValidationErrors;
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (validate()) {
-      onSave(formData);
+    if (validateAndSetErrors()) {  // Now safe: sets errors only here
+      console.log("Submitting:", { username, email, bio, avatarFile: !!avatarFile, removeAvatar });
+      onSave({ username, email, bio, avatarFile, removeAvatar });
     }
   };
 
   const handleInputChange = (field) => (e) => {
-    setFormData({ ...formData, [field]: e.target.value });
-    setTouched({ ...touched, [field]: true });
+    const value = e.target.value;
+    if (field === "username") setUsername(value);
+    if (field === "email") setEmail(value);
+    if (field === "bio") setBio(value);
+    // Don't set errors on change – only on blur/submit
   };
 
   const handleFileChange = (e) => {
@@ -76,15 +96,20 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
         setErrors({ ...errors, avatar: "Image must be under 5MB" });
         return;
       }
-      setFormData({ ...formData, avatarFile: file, removeAvatar: false });
-      setErrors({ ...errors, avatar: undefined });
+      setAvatarFile(file);
+      setRemoveAvatar(false);
+      setErrors(prev => { const { avatar, ...rest } = prev; return rest; });  // Clear avatar error
     }
   };
 
   const handleRemoveAvatar = () => {
-    setFormData({ ...formData, avatarFile: null, removeAvatar: true });
-    setErrors({ ...errors, avatar: undefined });
+    setAvatarFile(null);
+    setRemoveAvatar(true);
+    setErrors(prev => { const { avatar, ...rest } = prev; return rest; });  // Clear avatar error
   };
+
+  // Show error for a field only if touched
+  const getFieldError = (field) => touched[field] ? errors[field] : undefined;
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -120,14 +145,13 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
               )}
             </div>
 
-            {/* Avatar Actions */}
-            {previewUrl && (
+            {/* Remove Button */}
+            {previewUrl && !isLoading && (
               <button
                 type="button"
                 onClick={handleRemoveAvatar}
                 className="absolute -bottom-2 -right-2 p-2 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-colors"
                 title="Remove avatar"
-                disabled={isLoading}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -164,21 +188,21 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
           <input
             id="username"
             type="text"
-            value={formData.username}
+            value={username}
             onChange={handleInputChange("username")}
-            onBlur={() => setTouched({ ...touched, username: true })}
+            onBlur={() => handleBlur("username")}
             className={`w-full px-4 py-2.5 rounded-lg border ${
-              errors.username && touched.username
+              getFieldError("username")
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                 : "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"
             } bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 transition-colors`}
             placeholder="johndoe"
             disabled={isLoading}
           />
-          {errors.username && touched.username && (
+          {getFieldError("username") && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
-              {errors.username}
+              {getFieldError("username")}
             </p>
           )}
         </div>
@@ -191,21 +215,21 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
           <input
             id="email"
             type="email"
-            value={formData.email}
+            value={email}
             onChange={handleInputChange("email")}
-            onBlur={() => setTouched({ ...touched, email: true })}
+            onBlur={() => handleBlur("email")}
             className={`w-full px-4 py-2.5 rounded-lg border ${
-              errors.email && touched.email
+              getFieldError("email")
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                 : "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"
             } bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 transition-colors`}
             placeholder="john@example.com"
             disabled={isLoading}
           />
-          {errors.email && touched.email && (
+          {getFieldError("email") && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
               <AlertCircle className="w-4 h-4" />
-              {errors.email}
+              {getFieldError("email")}
             </p>
           )}
         </div>
@@ -218,11 +242,11 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
           <textarea
             id="bio"
             rows={3}
-            value={formData.bio}
+            value={bio}
             onChange={handleInputChange("bio")}
-            onBlur={() => setTouched({ ...touched, bio: true })}
+            onBlur={() => handleBlur("bio")}
             className={`w-full px-4 py-2.5 rounded-lg border ${
-              errors.bio && touched.bio
+              getFieldError("bio")
                 ? "border-red-500 focus:border-red-500 focus:ring-red-500"
                 : "border-gray-300 dark:border-gray-600 focus:border-blue-500 focus:ring-blue-500"
             } bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 resize-none transition-colors`}
@@ -231,14 +255,14 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
             disabled={isLoading}
           />
           <div className="flex justify-between items-center mt-1">
-            {errors.bio && touched.bio ? (
+            {getFieldError("bio") ? (
               <p className="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
                 <AlertCircle className="w-4 h-4" />
-                {errors.bio}
+                {getFieldError("bio")}
               </p>
             ) : (
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                {formData.bio.length}/160
+                {bio.length}/160
               </span>
             )}
           </div>
@@ -248,7 +272,7 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
         <div className="flex gap-3 pt-4">
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={isLoading || !isValid}  // Now safe: uses memoized pure value
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
@@ -269,9 +293,6 @@ export default function EditProfileForm({ user, onCancel, onSave, isLoading = fa
             Cancel
           </button>
         </div>
-
-        {/* Success Indicator (Optional) */}
-        {/* You can pass `success` from parent if needed */}
       </form>
     </div>
   );
