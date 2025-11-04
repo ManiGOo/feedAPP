@@ -1,69 +1,32 @@
-# React + TypeScript + Vite
+# Feed — Microblogging Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Feed** is a modern microblogging platform inspired by **X.com (formerly Twitter)**, built with **React**, **TypeScript**, and **Vite**.  
+It enables users to share **text posts**, **vertical videos**, and **reshare content** — combining the expressiveness of text with the engagement of short-form video.
 
-Currently, two official plugins are available:
+## ✨ Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Vertical Video Feed** — Immersive video viewing experience optimized for mobile-first design
+- **Text Posting** — Write, reply, and engage with posts
+- **Post Sharing** — Share and reshare posts seamlessly
+- **Real-Time Updates** — Built for responsiveness and speed
+- **Modular Frontend** — React + TypeScript ensures scalability and type safety
+- **Vite Build System** — Lightning-fast development with Hot Module Reloading (HMR)
 
-## Expanding the ESLint configuration
+## 🧩 Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **Frontend:** React, TypeScript, Vite
+- **Styling:** Tailwind CSS *(or your preferred CSS framework)*
+- **State Management:** Redux / Zustand / Context API *(choose based on preference)*
+- **Linting & Code Quality:** ESLint with React + TypeScript configurations
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## ⚙️ Getting Started
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Clone the Repository
+```bash
+git clone https://github.com/yourusername/feed.git
+cd feed
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 📜 License
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+This project is licensed under the MIT License — free for personal and commercial use.
