@@ -16,6 +16,8 @@ import MessagesPage from "./pages/MessagesPage";
 import { useAuth } from "./context/AuthContext";
 import ClipsFeed from "./pages/ClipsFeed";
 import EditPost from "./pages/EditPost";
+import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 
 import ClipDetail from "./pages/ClipDetail";
 
@@ -25,7 +27,7 @@ function App() {
 
   // Full-screen pages: no padding, no container, full height
   const fullScreenPaths = ["/messages", "/clips"];
-  const isFullScreen = fullScreenPaths.some(path => 
+  const isFullScreen = fullScreenPaths.some(path =>
     location.pathname.startsWith(path)
   );
 
@@ -163,6 +165,8 @@ function App() {
           {/* === PUBLIC ROUTES === */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* === 404 === */}
           <Route path="*" element={<NotFound />} />

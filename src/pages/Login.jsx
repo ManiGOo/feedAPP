@@ -31,15 +31,12 @@ export default function Login() {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-
       if (validationErrors.username) setShakeUsername(true);
       if (validationErrors.password) setShakePassword(true);
-
       setTimeout(() => {
         setShakeUsername(false);
         setShakePassword(false);
       }, 500);
-
       return;
     }
 
@@ -89,7 +86,7 @@ export default function Login() {
         transition={{ duration: 0.7 }}
         className="relative bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-2xl p-10 rounded-3xl w-full max-w-md mx-4 overflow-hidden"
       >
-        {/* Floating Circles */}
+        {/* Floating Orbs */}
         <motion.div
           className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-blue-400/20 blur-3xl"
           animate={{ y: [0, 20, 0], x: [0, 15, 0] }}
@@ -138,7 +135,7 @@ export default function Login() {
             {errors.password && <p className="text-red-600 text-sm mt-1">{errors.password}</p>}
           </motion.div>
 
-          {errors.form && <p className="text-red-600 text-sm">{errors.form}</p>}
+          {errors.form && <p className="text-red-600 text-sm text-center">{errors.form}</p>}
 
           <motion.button
             whileTap={{ scale: 0.96 }}
@@ -147,18 +144,32 @@ export default function Login() {
           >
             Login
           </motion.button>
-
         </form>
 
-        {/* Signup Link */}
-        <p className="mt-6 text-sm text-center relative z-10">
-          Don’t have an account?{" "}
-          <Link to="/signup" className="text-blue-600 dark:text-blue-400 hover:underline">
-            Sign up
-          </Link>
-        </p>
+        {/* Links */}
+        <div className="mt-6 text-sm text-center relative z-10 space-y-2">
+          <p>
+            Don’t have an account?{" "}
+            <Link to="/signup" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Sign up
+            </Link>
+          </p>
+          <p>
+            <Link to="/forgot-password" className="text-blue-600 dark:text-blue-400 hover:underline">
+              Forgot password?
+            </Link>
+          </p>
+        </div>
 
-        {success && <p className="mt-4 text-green-600 text-sm text-center">{success}</p>}
+        {success && (
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 text-green-600 text-sm text-center"
+          >
+            {success}
+          </motion.p>
+        )}
       </motion.div>
     </div>
   );

@@ -401,7 +401,7 @@ export default function Profile() {
                         <div
                           key={clip.id}
                           className="aspect-[9/16] bg-black rounded-lg overflow-hidden cursor-pointer"
-                          onClick={() => navigate(`/clip/${clip.id}`)}
+                          onClick={() => navigate(`/clips/${clip.id}`)}
                         >
                           <ClipItem clip={clip} isActive={false} />
                         </div>

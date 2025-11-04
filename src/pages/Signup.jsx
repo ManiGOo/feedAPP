@@ -8,7 +8,6 @@ export default function Signup() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState("");
   const [shakeUsername, setShakeUsername] = useState(false);
@@ -30,17 +29,14 @@ export default function Signup() {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-
       if (validationErrors.username) setShakeUsername(true);
       if (validationErrors.email) setShakeEmail(true);
       if (validationErrors.password) setShakePassword(true);
-
       setTimeout(() => {
         setShakeUsername(false);
         setShakeEmail(false);
         setShakePassword(false);
       }, 500);
-
       return;
     }
 
@@ -49,7 +45,6 @@ export default function Signup() {
       const res = await api.post("/auth/signup", { username, email, password });
       localStorage.setItem("accessToken", res.data.accessToken);
       localStorage.setItem("refreshToken", res.data.refreshToken);
-
       setSuccess("Signup successful! Redirecting to home...");
       setTimeout(() => navigate("/"), 1000);
     } catch (err) {
@@ -70,7 +65,7 @@ export default function Signup() {
         transition={{ duration: 0.7 }}
         className="relative bg-white/70 dark:bg-gray-900/70 backdrop-blur-md shadow-2xl p-10 rounded-3xl w-full max-w-md mx-4 overflow-hidden"
       >
-        {/* Floating shapes */}
+        {/* Floating Orbs */}
         <motion.div
           className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-blue-400/20 blur-3xl"
           animate={{ y: [0, 20, 0], x: [0, 15, 0] }}
@@ -92,9 +87,7 @@ export default function Signup() {
           >
             Feed
           </motion.div>
-          <p className="text-gray-600 dark:text-gray-300">
-            Join the community. Share your thoughts.
-          </p>
+          <p className="text-gray-600 dark:text-gray-300">Join the community. Share your thoughts.</p>
         </div>
 
         {/* Form */}
@@ -141,18 +134,25 @@ export default function Signup() {
           >
             Sign up
           </motion.button>
-
         </form>
 
         {/* Login Link */}
-        <p className="mt-6 text-sm text-center relative z-10 text-gray-600 dark:text-gray-300">
+        <p className="mt-6 text-sm text-center relative z-10">
           Already have an account?{" "}
           <Link to="/login" className="text-blue-600 dark:text-blue-400 hover:underline">
             Login
           </Link>
         </p>
 
-        {success && <p className="mt-4 text-green-600 text-sm text-center">{success}</p>}
+        {success && (
+          <motion.p
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 text-green-600 text-sm text-center"
+          >
+            {success}
+          </motion.p>
+        )}
       </motion.div>
     </div>
   );
