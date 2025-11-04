@@ -1,5 +1,5 @@
-// src/pages/ClipsFeed.jsx (assuming this is the file path)
-import React, { useEffect, useState, useCallback } from "react";
+// src/pages/ClipsFeed.jsx
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ClipItem from "../components/ClipItem";
 import CommentsPanel from "../components/CommentsPanel";
@@ -20,7 +20,12 @@ export default function ClipsFeed() {
   const [showUpload, setShowUpload] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
 
-  // Fetch Clips
+  const feedRef = useRef(null);
+  const wheelTimeout = useRef(null);
+
+  // -------------------------------------------------
+  // FETCH CLIPS
+  // -------------------------------------------------
   useEffect(() => {
     const fetchClips = async () => {
       try {
@@ -35,7 +40,9 @@ export default function ClipsFeed() {
     fetchClips();
   }, []);
 
-  // Update Clip
+  // -------------------------------------------------
+  // SOCKET & CONTEXT HELPERS
+  // -------------------------------------------------
   const updateClip = useCallback(
     (clipId, updates) => {
       setClips((prev) =>
@@ -80,34 +87,74 @@ export default function ClipsFeed() {
 
   useClipsSocket({ clips, setClips, currentIndex, updateClip, handleCommentAdded, handleNewClip });
 
-  // Drag Handling
-  const handleDragEnd = (offset, velocity) => {
-    const threshold = 120;
-    const momentum = Math.min(Math.floor(Math.abs(velocity) / 700), 3) || 1;
+  // -------------------------------------------------
+  // NAVIGATION HELPERS
+  // -------------------------------------------------
+  const goNext = useCallback(() => {
+    setCurrentIndex((i) => Math.min(i + 1, clips.length - 1));
+  }, [clips.length]);
 
-    if (offset < -threshold || velocity < -200) {
-      setCurrentIndex((prev) => Math.min(prev + momentum, clips.length - 1));
-    } else if (offset > threshold || velocity > 200) {
-      setCurrentIndex((prev) => Math.max(prev - momentum, 0));
+  const goPrev = useCallback(() => {
+    setCurrentIndex((i) => Math.max(i - 1, 0));
+  }, []);
+
+  // -------------------------------------------------
+  // DRAG (SWIPE) – ONE VIDEO PER SWIPE
+  // -------------------------------------------------
+  const handleDragEnd = (offsetY, velocityY) => {
+    const THRESHOLD = 120;               // px
+    const VELOCITY_THRESHOLD = 200;      // px/s
+
+    if (offsetY < -THRESHOLD || velocityY < -VELOCITY_THRESHOLD) {
+      goNext();
+    } else if (offsetY > THRESHOLD || velocityY > VELOCITY_THRESHOLD) {
+      goPrev();
     }
     setDragOffset(0);
   };
 
+  // -------------------------------------------------
+  // MOUSE WHEEL
+  // -------------------------------------------------
+  const handleWheel = useCallback(
+    (e) => {
+      if (wheelTimeout.current) return;
+      wheelTimeout.current = setTimeout(() => (wheelTimeout.current = null), 300);
+
+      if (e.deltaY > 0) goNext();
+      else if (e.deltaY < 0) goPrev();
+    },
+    [goNext, goPrev]
+  );
+
+  useEffect(() => {
+    const el = feedRef.current;
+    if (!el) return;
+    el.addEventListener("wheel", handleWheel, { passive: true });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
+
+  // -------------------------------------------------
+  // LOADER
+  // -------------------------------------------------
   if (loading) return <Loader size={50} color="#3b82f6" />;
 
-  const contextValue = {
-    clips,
-    updateClip,
-    currentIndex,
-  };
+  // -------------------------------------------------
+  // CONTEXT
+  // -------------------------------------------------
+  const contextValue = { clips, updateClip, currentIndex };
 
+  // -------------------------------------------------
+  // RENDER
+  // -------------------------------------------------
   return (
     <ClipsProvider value={contextValue}>
       <div
+        ref={feedRef}
         className="relative w-full h-screen bg-black overflow-hidden flex justify-center items-center"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        {/* Upload Button */}
+        {/* ---------- UPLOAD BUTTON ---------- */}
         <AnimatePresence>
           {!showComments && !showUpload && (
             <motion.div
@@ -129,37 +176,65 @@ export default function ClipsFeed() {
           )}
         </AnimatePresence>
 
-        {/* Clips Feed */}
-        <div className="absolute w-full h-full flex justify-center items-center overflow-hidden">
-          <AnimatePresence>
+        {/* ---------- ARROW BUTTONS (Desktop hover / Mobile always) ---------- */}
+        <div className="fixed right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4 z-30 md:opacity-0 md:hover:opacity-100 transition-opacity">
+          <button
+            onClick={goPrev}
+            disabled={currentIndex === 0}
+            className="bg-white/20 backdrop-blur-sm text-white p-3 rounded-full disabled:opacity-30"
+            aria-label="Previous video"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+            </svg>
+          </button>
+
+          <button
+            onClick={goNext}
+            disabled={currentIndex === clips.length - 1}
+            className="bg-white/20 backdrop-blur-sm text-white p-3 rounded-full disabled:opacity-30"
+            aria-label="Next video"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+        </div>
+
+        {/* ---------- CLIPS FEED ---------- */}
+        <div className="absolute inset-0 flex justify-center items-center overflow-hidden">
+          <AnimatePresence initial={false}>
             {clips.map((clip, idx) => {
+              // Render only the current clip + the one before/after it
               if (Math.abs(idx - currentIndex) > 1) return null;
 
               const isCurrent = idx === currentIndex;
               const isNext = idx > currentIndex;
+
               const baseY = isCurrent
                 ? dragOffset
                 : isNext
-                ? window.innerHeight + dragOffset
-                : -window.innerHeight + dragOffset;
-              const zIndex = isCurrent ? 10 : 5;
+                ? window.innerHeight
+                : -window.innerHeight;
 
               return (
                 <motion.div
                   key={clip.id}
+                  // Only the active clip is draggable
                   drag={isCurrent ? "y" : false}
                   dragConstraints={{ top: 0, bottom: 0 }}
-                  dragElastic={0.5}
-                  onDrag={(e, info) => setDragOffset(info.offset.y)}
-                  onDragEnd={(e, info) => handleDragEnd(info.offset.y, info.velocity.y)}
-                  initial={{ y: isNext ? "100%" : "-100%", opacity: 0 }}
+                  dragElastic={0.4}
+                  onDrag={(e, { offset }) => setDragOffset(offset.y)}
+                  onDragEnd={(e, { offset, velocity }) => handleDragEnd(offset.y, velocity.y)}
+                  initial={{ y: isNext ? "100%" : "-100%" }}
                   animate={{ y: baseY, opacity: 1 }}
                   exit={{ y: isNext ? "-100%" : "100%", opacity: 0 }}
-                  transition={{ duration: 0.3, ease: "easeInOut" }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   className="absolute w-full h-full flex justify-center items-center"
-                  style={{ zIndex }}
+                  style={{ zIndex: isCurrent ? 10 : 5 }}
                 >
-                  <div className="w-full h-full max-w-[500px] max-h-[90vh]">
+                  {/* ---- VIDEO CONTAINER (keeps original aspect) ---- */}
+                  <div className="relative w-full h-full max-w-[500px] max-h-[90vh] flex justify-center items-center bg-black">
                     <ClipItem
                       clip={clip}
                       isActive={isCurrent}
@@ -172,7 +247,7 @@ export default function ClipsFeed() {
           </AnimatePresence>
         </div>
 
-        {/* Comments Panel */}
+        {/* ---------- COMMENTS ---------- */}
         {clips[currentIndex] && (
           <CommentsPanel
             show={showComments}
@@ -182,7 +257,7 @@ export default function ClipsFeed() {
           />
         )}
 
-        {/* Upload Overlay */}
+        {/* ---------- UPLOAD OVERLAY ---------- */}
         <UploadClipOverlay
           show={showUpload}
           onClose={() => setShowUpload(false)}
@@ -190,7 +265,7 @@ export default function ClipsFeed() {
           currentUser={currentUser}
         />
 
-        {/* Bottom Navigation */}
+        {/* ---------- BOTTOM NAV ---------- */}
         {!showComments && (
           <div className="fixed bottom-0 left-0 w-full z-20">
             <GlobalBottomNav />

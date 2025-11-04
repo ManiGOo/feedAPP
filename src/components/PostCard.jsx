@@ -1,4 +1,3 @@
-// components/PostCard.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -37,7 +36,6 @@ export default function PostCard({
   showDelete = false,
   onDelete,
   hideEdit = false,
-
   // Stats
   like_count = 0,
   liked_by_me = false,
@@ -65,7 +63,6 @@ export default function PostCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [heartAnim, setHeartAnim] = useState(false);
   const [editMode, setEditMode] = useState(false);
-
   const menuRef = useRef(null);
   const moreBtnRef = useRef(null);
   const cardRef = useRef(null);
@@ -80,7 +77,6 @@ export default function PostCard({
       likes: wasLiked ? prev.likes - 1 : prev.likes + 1,
     }));
     setHeartAnim(true);
-
     try {
       const { liked, like_count } = await api.toggleLike(id);
       setStats((prev) => ({ ...prev, liked, likes: like_count }));
@@ -169,11 +165,9 @@ export default function PostCard({
         setTimeout(() => (clickCount = 0), 300);
       }
     };
-
     if (editMode && cardRef.current) {
       cardRef.current.addEventListener("click", handleDoubleClick);
     }
-
     return () => {
       if (cardRef.current) {
         cardRef.current.removeEventListener("click", handleDoubleClick);
@@ -296,7 +290,7 @@ export default function PostCard({
             {is_verified && <CheckCircle size={18} className="text-blue-500 fill-blue-500" />}
             <span className="text-gray-500">· {formatDate(created_at)}</span>
 
-            {/* MORE MENU (only for owner) */}
+            {/* MORE MENU (owner only) */}
             {showDelete && (
               <button
                 ref={moreBtnRef}
@@ -434,7 +428,6 @@ export default function PostCard({
             >
               Delete post
             </button>
-
             {!hideEdit && (
               <button
                 onClick={() => {

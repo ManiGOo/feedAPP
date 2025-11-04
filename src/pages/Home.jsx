@@ -12,6 +12,7 @@ const NAVBAR_HEIGHT = 56;
 
 export default function Home() {
   const { user, loading: authLoading } = useAuth();
+
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("forYou");
@@ -22,13 +23,11 @@ export default function Home() {
   /* === FETCH POSTS === */
   useEffect(() => {
     if (!user) return;
-
     const fetchPosts = async () => {
       try {
         setLoading(true);
         const feed = tab === "following" ? "following" : null;
         const data = await api.getPosts(feed);
-
         const normalized = data.map((p) => ({
           ...p,
           image: p.media_type === "image" ? p.media_url : null,
@@ -42,7 +41,6 @@ export default function Home() {
           bookmarked_by_me: p.bookmarked_by_me ?? false,
           isFollowedAuthor: p.is_followed_author ?? false,
         }));
-
         setPosts(normalized);
       } catch (err) {
         console.error("Failed to load posts:", err);
@@ -50,7 +48,6 @@ export default function Home() {
         setLoading(false);
       }
     };
-
     fetchPosts();
   }, [user, tab]);
 
@@ -59,27 +56,27 @@ export default function Home() {
     const handleScroll = () => {
       const current = window.scrollY;
       const scrollingDown = current > lastScrollY.current;
-
       if (scrollingDown && current > 100) {
         setHeaderVisible(false);
       } else if (!scrollingDown && current < lastScrollY.current - 10) {
         setHeaderVisible(true);
       }
-
       lastScrollY.current = current;
     };
-
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   /* === HANDLE NEW POST === */
   const handleNewPost = (post) => {
+    // `post` comes from the backend → it already contains author, avatar_url, etc.
     const newPost = {
       ...post,
-      author: user.username,
-      author_id: user.id,
-      author_avatar: user.avatar_url,
+      author: post.author ?? user.username,
+      author_id: post.author_id ?? user.id,
+      author_avatar: post.author_avatar ?? user.avatar_url,
+      image: post.media_type === "image" ? post.media_url : null,
+      video: post.media_type === "video" ? post.media_url : null,
       like_count: 0,
       liked_by_me: false,
       comments_count: 0,
@@ -88,8 +85,6 @@ export default function Home() {
       bookmark_count: 0,
       bookmarked_by_me: false,
       isFollowedAuthor: tab === "following",
-      image: post.media_type === "image" ? post.media_url : null,
-      video: post.media_type === "video" ? post.media_url : null,
     };
     setPosts((prev) => [newPost, ...prev]);
     setShowCreate(false);
@@ -100,12 +95,9 @@ export default function Home() {
     try {
       const res = await api.post(`/follow/toggle/${authorId}`);
       const isFollowing = res.data.isFollowing;
-
       setPosts((prev) =>
         prev.map((p) =>
-          p.author_id === authorId
-            ? { ...p, isFollowedAuthor: isFollowing }
-            : p
+          p.author_id === authorId ? { ...p, isFollowedAuthor: isFollowing } : p
         )
       );
     } catch (err) {
@@ -130,7 +122,6 @@ export default function Home() {
   return (
     <div className={`min-h-screen bg-gray-50 dark:bg-black ${showCreate ? "" : "pb-20"}`}>
       <Navbar />
-
       {/* === STICKY TABS === */}
       <motion.div
         animate={{ y: headerVisible ? 0 : -60 }}
@@ -161,7 +152,7 @@ export default function Home() {
       </motion.div>
 
       {/* === FEED === */}
-      <div className="max-w-xl mx-auto mt-8"> {/* Added margin-top for spacing */}
+      <div className="max-w-xl mx-auto mt-8">
         {posts.length === 0 ? (
           <div className="text-center py-20 px-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">

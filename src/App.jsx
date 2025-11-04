@@ -17,7 +17,7 @@ import { useAuth } from "./context/AuthContext";
 import ClipsFeed from "./pages/ClipsFeed";
 import EditPost from "./pages/EditPost";
 
-import SingleClip from "./components/SingleClip";
+import ClipDetail from "./pages/ClipDetail";
 
 function App() {
   const location = useLocation();
@@ -60,7 +60,7 @@ function App() {
             path="/clips/:clipId"
             element={
               <ProtectedRoute>
-                <SingleClip />
+                <ClipDetail />
               </ProtectedRoute>
             }
           />

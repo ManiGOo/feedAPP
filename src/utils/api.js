@@ -121,6 +121,10 @@ api.quote = (id, content, image, video) => {
 // === CLIPS ===
 api.getClips = () => api.get("/clips").then(r => r.data);
 
+api.getClipById = (clipId) => {
+  return api.get(`/clips/${clipId}`).then((response) => response.data);
+};
+
 api.uploadClip = (fd, onProgress) => {
   if (!fd.get("video")) throw new Error("Video required");
   return api.post("/clips", fd, {
@@ -134,9 +138,6 @@ api.unlikeClip = (id) => api.post(`/clips/${id}/unlike`).then(r => r.data);
 api.getClipComments = (id) => api.get(`/clips/${id}/comments`).then(r => r.data);
 api.commentClip = (id, content) => api.post(`/clips/${id}/comment`, { content }).then(r => r.data);
 
-api.getClipById = (clipId) => {
-  return api.get(`/clips/${clipId}`).then((response) => response.data);
-};
 
 // === USERS ===
 api.getCurrentUser = () => api.get("/users/me").then(r => r.data);

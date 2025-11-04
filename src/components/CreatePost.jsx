@@ -1,11 +1,14 @@
-// components/CreatePost.jsx
 import { useState } from "react";
 import { X, Image, Video, Send, Repeat2 } from "lucide-react";
 import api from "../utils/api";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
-export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepost }) {
+export default function CreatePost({
+  onNewPost,
+  repostTarget = null,
+  onCloseRepost,
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -29,7 +32,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
       if (file) data[file.type.startsWith("video/") ? "video" : "image"] = file;
       if (repostTarget) data.quote_from = repostTarget.id;
 
-      const post = await api.createPost(data);
+      const post = await api.createPost(data);   // <-- backend returns full post
       onNewPost(post);
       reset();
     } catch (err) {
@@ -48,7 +51,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
 
   return (
     <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-      {/* === REPOST BANNER AT TOP (X-STYLE) === */}
+      {/* REPOST BANNER AT TOP */}
       {repostTarget && (
         <div className="px-4 pt-3 pb-2 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
           <Repeat2 size={14} />
@@ -60,7 +63,10 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
           </span>
           <span>reposted</span>
           <button
-            onClick={(e) => { e.stopPropagation(); onCloseRepost(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onCloseRepost();
+            }}
             className="ml-auto text-gray-400 hover:text-gray-600"
           >
             <X size={14} />
@@ -68,7 +74,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
         </div>
       )}
 
-      {/* === MAIN COMPOSER === */}
+      {/* MAIN COMPOSER */}
       <div className="px-4 pb-3">
         <div className="flex gap-3">
           {/* Avatar */}
@@ -96,7 +102,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
           </div>
         </div>
 
-        {/* === QUOTE PREVIEW === */}
+        {/* QUOTE PREVIEW */}
         {repostTarget && (
           <div
             className="mt-2 p-2.5 rounded-2xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 cursor-pointer"
@@ -114,7 +120,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
           </div>
         )}
 
-        {/* === MEDIA PREVIEW === */}
+        {/* MEDIA PREVIEW */}
         {preview && (
           <div className="relative mt-3">
             {file?.type.startsWith("video/") ? (
@@ -123,7 +129,10 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
               <img src={preview} alt="preview" className="w-full rounded-xl max-h-80 object-cover" />
             )}
             <button
-              onClick={() => { setFile(null); setPreview(null); }}
+              onClick={() => {
+                setFile(null);
+                setPreview(null);
+              }}
               className="absolute top-2 right-2 bg-black/60 text-white rounded-full p-1.5 hover:bg-black/80"
             >
               <X size={16} />
@@ -131,7 +140,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
           </div>
         )}
 
-        {/* === ACTIONS === */}
+        {/* ACTIONS */}
         <div className="flex items-center justify-between mt-3">
           <div className="flex gap-4">
             <label className="cursor-pointer text-blue-500 hover:text-blue-600">
@@ -149,7 +158,7 @@ export default function CreatePost({ onNewPost, repostTarget = null, onCloseRepo
             disabled={loading || (!content.trim() && !file)}
             className="px-5 py-1.5 bg-blue-500 text-white rounded-full text-sm font-medium disabled:opacity-50 hover:bg-blue-600 transition flex items-center gap-1.5"
           >
-            {loading ? "Posting..." : (repostTarget ? "Quote" : "Post")}
+            {loading ? "Posting..." : repostTarget ? "Quote" : "Post"}
             <Send size={16} />
           </button>
         </div>
