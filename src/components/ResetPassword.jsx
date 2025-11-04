@@ -1,8 +1,9 @@
+// src/components/ResetPassword.jsx (Rewritten)
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import api from "../utils/api";  // ← ADDED: Use shared API instance (respects VITE_API_URL)
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
@@ -12,7 +13,6 @@ export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");
-
   const [shakePass, setShakePass] = useState(false);
   const [shakeConfirm, setShakeConfirm] = useState(false);
 
@@ -26,23 +26,22 @@ export default function ResetPassword() {
     e.preventDefault();
     setMsg("");
     setError("");
-
     if (password !== confirm) {
       setError("Passwords do not match");
       setShakeConfirm(true);
       setTimeout(() => setShakeConfirm(false), 500);
       return;
     }
-
     if (!password || password.length < 6) {
       setError("Password must be at least 6 characters");
       setShakePass(true);
       setTimeout(() => setShakePass(false), 500);
       return;
     }
-
     try {
-      const res = await axios.post("/api/auth/password/reset", {
+      // ← FIXED: Use `api.post("/auth/...")` instead of raw `axios.post("/api/...")`
+      // This hits your Render backend via VITE_API_URL
+      const res = await api.post("/auth/password/reset", {
         token,
         newPassword: password,
       });
@@ -83,7 +82,6 @@ export default function ResetPassword() {
           animate={{ y: [0, -15, 0], x: [0, -15, 0] }}
           transition={{ repeat: Infinity, duration: 10, ease: "easeInOut" }}
         />
-
         {/* Header */}
         <div className="text-center mb-8 relative z-10">
           <motion.div
@@ -96,7 +94,6 @@ export default function ResetPassword() {
           </motion.div>
           <p className="text-gray-600 dark:text-gray-300">Set your new password.</p>
         </div>
-
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           <motion.div animate={shakePass ? shakeAnimation : {}}>
@@ -108,7 +105,6 @@ export default function ResetPassword() {
               className="w-full p-3 rounded-xl bg-white/30 dark:bg-gray-800/40 backdrop-blur-sm border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
             />
           </motion.div>
-
           <motion.div animate={shakeConfirm ? shakeAnimation : {}}>
             <input
               type="password"
@@ -119,7 +115,6 @@ export default function ResetPassword() {
             />
             {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
           </motion.div>
-
           <motion.button
             whileTap={{ scale: 0.96 }}
             type="submit"
@@ -128,14 +123,12 @@ export default function ResetPassword() {
             Update Password
           </motion.button>
         </form>
-
         {/* Back to Login */}
         <p className="mt-6 text-sm text-center relative z-10">
           <Link to="/login" className="text-blue-600 dark:text-blue-400 hover:underline">
             Back to Login
           </Link>
         </p>
-
         {msg && (
           <motion.p
             initial={{ opacity: 0, y: 10 }}

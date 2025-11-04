@@ -8,4 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    proxy: process.env.NODE_ENV === 'development' ? {
+      '/api': 'http://localhost:5000'
+    } : undefined
+  },
 })

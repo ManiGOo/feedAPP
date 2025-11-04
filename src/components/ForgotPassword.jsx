@@ -1,7 +1,8 @@
+// src/components/ForgotPassword.jsx (Rewritten)
 import { useState } from "react";
-import axios from "axios";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import api from "../utils/api";  // ← ADDED: Use shared API instance (respects VITE_API_URL)
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -13,16 +14,16 @@ export default function ForgotPassword() {
     e.preventDefault();
     setMsg("");
     setError("");
-
     if (!email.trim()) {
       setError("Please enter your email.");
       setShakeEmail(true);
       setTimeout(() => setShakeEmail(false), 500);
       return;
     }
-
     try {
-      const res = await axios.post("/api/auth/password/request", { email });
+      // ← FIXED: Use `api.post("/auth/...")` instead of raw `axios.post("/api/...")`
+      // This hits your Render backend via VITE_API_URL
+      const res = await api.post("/auth/password/request", { email });
       setMsg(res.data.message);
     } catch (err) {
       setError(err.response?.data?.error || "Network error");
@@ -55,7 +56,6 @@ export default function ForgotPassword() {
           animate={{ y: [0, -15, 0], x: [0, -15, 0] }}
           transition={{ repeat: Infinity, duration: 10, ease: "easeInOut" }}
         />
-
         {/* Header */}
         <div className="text-center mb-8 relative z-10">
           <motion.div
@@ -68,7 +68,6 @@ export default function ForgotPassword() {
           </motion.div>
           <p className="text-gray-600 dark:text-gray-300">Enter your email to reset password.</p>
         </div>
-
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4 relative z-10">
           <motion.div animate={shakeEmail ? shakeAnimation : {}}>
@@ -81,7 +80,6 @@ export default function ForgotPassword() {
             />
             {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
           </motion.div>
-
           <motion.button
             whileTap={{ scale: 0.96 }}
             type="submit"
@@ -90,7 +88,6 @@ export default function ForgotPassword() {
             Send Reset Link
           </motion.button>
         </form>
-
         {/* Links */}
         <p className="mt-6 text-sm text-center relative z-10">
           Remembered your password?{" "}
@@ -98,7 +95,6 @@ export default function ForgotPassword() {
             Log in
           </Link>
         </p>
-
         {msg && (
           <motion.p
             initial={{ opacity: 0, y: 10 }}
